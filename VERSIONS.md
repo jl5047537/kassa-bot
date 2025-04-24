@@ -1,92 +1,88 @@
 # Версии и зависимости проекта Kassa Bot
 
-## Основные зависимости
+## Зависимости проекта
 
-### Python
-- Python 3.8+
-- pip (менеджер пакетов)
+### Основные зависимости
+- Python 3.11+
+- PostgreSQL 15+
+- PowerShell 7.0+
 
-### База данных
-- SQLite3 (встроенная)
-- PostgreSQL (опционально для продакшена)
+### Версии пакетов
 
-### Веб-сервер
-- Uvicorn 0.27.1
+#### Основные пакеты
+- FastAPI==0.109.2
+- Uvicorn==0.27.1
+- SQLAlchemy==2.0.27
+- Alembic==1.13.1
+- python-telegram-bot==20.8
+- python-dotenv==1.0.1
+- pydantic==2.6.1
+- pydantic-settings==2.1.0
+- psycopg2-binary==2.9.9
+- python-multipart==0.0.9
+- jinja2==3.1.3
+- aiofiles==23.2.1
 
-## Версии пакетов
+#### Пакеты для разработки
+- pytest==7.4.4
+- pytest-asyncio==0.23.5
+- black==24.2.0
+- isort==5.13.2
+- mypy==1.8.0
+- pytest-cov==4.1.0
+- flake8==7.0.0
+- pre-commit==3.6.0
 
-### Основные пакеты
-```
-fastapi==0.109.2
-uvicorn==0.27.1
-sqlalchemy==2.0.27
-alembic==1.13.1
-python-telegram-bot==20.8
-python-dotenv==1.0.1
-pydantic==2.6.1
-pydantic-settings==2.1.0
-psycopg2-binary==2.9.9
-python-multipart==0.0.9
-jinja2==3.1.3
-aiofiles==23.2.1
-```
-
-### Дополнительные пакеты
-```
-httpx==0.26.0
-apscheduler==3.10.4
-```
-
-## Версии API
-
-### Telegram Bot API
-- Версия: 6.8
-- Режим: Long Polling
-- Токен: 7844652385:AAGWn0XM3YiJF8hgfQ5yOomT4-sKYGGziuA
-
-### TON API
-- Сеть: Testnet
-- Endpoint: testnet.toncenter.com
-- Версия API: v2
-- API Key: 2c97cb20ca2b2cb03966f8252eb94d4f9b98ff0d8a253187557119d003d8f868
-
-## Конфигурационные файлы
+### Версии API
+- Telegram Bot API: последняя стабильная
+- TON API: последняя стабильная
 
 ### Версии конфигурационных файлов
-- `.env` - v1.0
-- `user_config.json` - v1.0
-- `levels_config.json` - v1.0
-- `alembic.ini` - v1.0
+- requirements.txt: 1.0.0
+- requirements-dev.txt: 1.0.0
+- .env.example: 1.0.0
 
 ### Версии миграций базы данных
-- Первая миграция: 001_initial.py
+- Текущая версия: 001
+- Последняя миграция: initial
 
 ## Системные требования
 
 ### Минимальные требования
-- ОС: Windows 10, Linux, macOS
-- RAM: 512 MB
-- CPU: 1 ядро
-- HDD: 100 MB свободного места
+- Windows 10/11
+- PowerShell 7.0+
+- Python 3.11+
+- 2GB RAM
+- 1GB свободного места на диске
 
 ### Рекомендуемые требования
-- ОС: Windows 10/11, Linux, macOS
-- RAM: 1 GB
-- CPU: 2 ядра
-- HDD: 500 MB свободного места
+- Windows 10/11
+- PowerShell 7.2+
+- Python 3.11+
+- 4GB RAM
+- 2GB свободного места на диске
 
-## Примечания по обновлению
-- При обновлении версий пакетов необходимо:
-  1. Создать резервную копию базы данных
-  2. Обновить зависимости через pip
-  3. Применить миграции базы данных
-  4. Перезапустить сервис
+## Процесс обновления
+
+### Обновление зависимостей
+```powershell
+# Обновление production зависимостей
+pip install -r requirements.txt --upgrade
+
+# Обновление development зависимостей
+pip install -r requirements-dev.txt --upgrade
+```
+
+### Обновление базы данных
+```powershell
+# Применение миграций
+alembic upgrade head
+```
 
 ## История версий
 
-### v1.0.0 (Текущая)
+### 1.0.0 (Текущая)
 - Первоначальный релиз
-- Базовая функциональность бота
-- Интеграция с TON API
-- Система уровней
-- Реферальная система 
+- Разделение зависимостей на production и development
+- Адаптация команд для PowerShell
+- Обновление документации 
