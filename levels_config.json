@@ -1,0 +1,28 @@
+{
+  "levels": [
+    {
+      "telegram_id": "7694850355",
+      "level": 4,
+      "phone_number": "+79363030567",
+      "ton_address": "0QCT_wLTE_UC29vMlAMsXbjKfGIWvpmdmRZ_ChfPmA6KoWxt"
+    },
+    {
+      "telegram_id": "7806482506",
+      "level": 3,
+      "phone_number": "+79683327001",
+      "ton_address": "0QCZBUZX-u0GA0ryae-6r4yS0TfJSuA7EutuwSgSLs6_8wIB"
+    },
+    {
+      "telegram_id": "7355173647",
+      "level": 2,
+      "phone_number": "+79684286626",
+      "ton_address": "0QBbEep4YB5I7MB_6gAfplVR79wvUG8emX5xeuZU5G-z3N8o"
+    },
+    {
+      "telegram_id": "7651819044",
+      "level": 1,
+      "phone_number": "+79253498238",
+      "ton_address": "0QBrhBVaCW2xresjfQZAaLmuOJGcbPSgLmYzqUcdoF_juPiZ"
+    }
+  ]
+}
