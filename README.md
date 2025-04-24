@@ -23,6 +23,18 @@ pip install -r requirements.txt
 alembic upgrade head
 ```
 
+## Установка зависимостей
+
+### Production
+```bash
+pip install -r requirements.txt
+```
+
+### Development
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Запуск
 
 1. Запуск сервера разработки:
@@ -55,6 +67,12 @@ kassa_bot/
 └── main.py             # Точка входа
 ```
 
+- `requirements.txt` - основные зависимости для production
+- `requirements-dev.txt` - дополнительные зависимости для разработки
+- `bot/` - код Telegram бота
+- `app/` - FastAPI приложение
+- `alembic/` - миграции базы данных
+
 ## Технологии
 
 - FastAPI - веб-фреймворк
@@ -63,3 +81,45 @@ kassa_bot/
 - python-telegram-bot - Telegram бот
 - Jinja2 - шаблонизатор
 - PostgreSQL - база данных 
+
+## Запуск
+
+1. Установите зависимости:
+   ```bash
+   # Для production
+   pip install -r requirements.txt
+   
+   # Для разработки
+   pip install -r requirements-dev.txt
+   ```
+
+2. Настройте переменные окружения (скопируйте .env.example в .env)
+
+3. Запустите бота:
+   ```bash
+   python bot.py
+   ```
+
+4. Запустите FastAPI приложение:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+## Тестирование
+
+```bash
+pytest
+```
+
+## Линтинг
+
+```bash
+# Форматирование кода
+black .
+
+# Сортировка импортов
+isort .
+
+# Проверка типов
+mypy .
+``` 
