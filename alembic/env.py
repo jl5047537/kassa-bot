@@ -2,7 +2,6 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
-from app.core.config import settings
 from app.models.user import User
 from app.models.referral import ReferralCircle, Referral, ReferralHistory
 
@@ -14,7 +13,7 @@ if config.config_file_name is not None:
 target_metadata = [User.metadata, ReferralCircle.metadata, Referral.metadata, ReferralHistory.metadata]
 
 def get_url():
-    return settings.get_database_url
+    return "postgresql://postgres:postgres123@localhost:5432/kassa_bot"
 
 def run_migrations_offline() -> None:
     url = get_url()
