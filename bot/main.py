@@ -34,7 +34,7 @@ def get_main_keyboard():
     return keyboard
 
 def get_registration_keyboard():
-    # Оставляем пустую клавиатуру, чтобы не мешать сценарию
+    # Возвращаем пустую клавиатуру, чтобы не мешать сценарию
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     return keyboard
 
@@ -47,8 +47,8 @@ async def cmd_start(message: types.Message):
     await message.answer(
         "🚀 Добро пожаловать!\nТвой путь к финансовой свободе начинается здесь!\nПройди короткую регистрацию в нашей *Кассе Взаимопомощи* и начни строить своё уверенное будущее уже сегодня. 🔥\nГотов? Жми кнопку ниже! 👇",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup().add(
-            InlineKeyboardButton("Зарегистрироваться", callback_data="register")
+        reply_markup=ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(
+            KeyboardButton("🔑 ЗАРЕГИСТРИРОВАТЬСЯ 🔑", request_contact=True)
         )
     )
 
@@ -58,15 +58,15 @@ async def cmd_start(message: types.Message):
     else:
         await UserStates.waiting_for_phone.set()
 
-@dp.callback_query_handler(lambda c: c.data == 'register')
+@dp.callback_query_handler(lambda c: c.data == 'register', state='*')
 async def process_register_callback(callback_query: CallbackQuery):
     reg_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    reg_keyboard.add(KeyboardButton("Зарегистрироваться", request_contact=True))
+    reg_keyboard.add(KeyboardButton("📱 Отправить номер телефона", request_contact=True))
     await callback_query.message.answer(
-        "Пожалуйста, отправьте свой контакт для регистрации:",
+        "Пожалуйста, нажмите кнопку ниже, чтобы отправить свой номер телефона для регистрации:",
         reply_markup=reg_keyboard
     )
-    await callback_query.answer()
+    await callback_query.answer("Кнопка нажата!")
 
 @dp.message_handler(lambda message: message.text == "👤 Мой профиль")
 async def show_profile(message: types.Message):
