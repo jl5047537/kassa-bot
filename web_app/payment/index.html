@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Оплата участия - MATRIX</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-button-color: #0088cc;
+            --tg-theme-button-text-color: #ffffff;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: var(--tg-theme-bg-color);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .contact-info {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            margin-bottom: 10px;
+        }
+        
+        .copy-button {
+            background: #4CAF50;
+        }
+        
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .success {
+            background: #dff0d8;
+            color: #3c763d;
+        }
+        
+        .error {
+            background: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Оплата участия</h1>
+        </div>
+        
+        <div class="contact-info">
+            <h2>Контактная информация</h2>
+            <p>Имя: <strong>MATRIX</strong></p>
+            <p>Телефон: <strong id="phone">9250007755</strong></p>
+        </div>
+
+        <button class="button" onclick="saveContact()">
+            💾 Сохранить номер
+        </button>
+        
+        <button class="button copy-button" onclick="copyPhone()">
+            📋 Скопировать номер
+        </button>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        // Инициализация Web App
+        let tg = window.Telegram.WebApp;
+        
+        // Показываем кнопку "Назад" в Web App
+        tg.BackButton.show();
+        
+        // Обработчик нажатия на кнопку "Назад"
+        tg.BackButton.onClick(function() {
+            tg.close();
+        });
+        
+        // Функция сохранения контакта
+        function saveContact() {
+            tg.openTelegramLink('tg://addcontact?phone=9250007755&name=MATRIX');
+            showStatus('Контакт успешно сохранен!', 'success');
+        }
+        
+        // Функция копирования номера
+        function copyPhone() {
+            const phone = document.getElementById('phone').textContent;
+            navigator.clipboard.writeText(phone).then(() => {
+                showStatus('Номер скопирован в буфер обмена!', 'success');
+            }).catch(() => {
+                showStatus('Ошибка при копировании номера', 'error');
+            });
+        }
+        
+        // Функция показа статуса
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 
