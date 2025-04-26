@@ -41,45 +41,34 @@ class Database:
             with conn.cursor() as cur:
                 # Удаляем существующие таблицы
                 cur.execute("""
-                    DROP TABLE IF EXISTS payments;
                     DROP TABLE IF EXISTS users;
                 """)
                 
                 # Создаем таблицу users
                 cur.execute("""
-                    CREATE TABLE users (
-                        telegram_id TEXT PRIMARY KEY,
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        telegram_id TEXT UNIQUE,
                         level INTEGER DEFAULT 1,
-                        referrer_id TEXT,
                         phone_number TEXT,
-                        ton_address TEXT,
-                        registration_timestamp INTEGER
-                    )
-                """)
-                
-                # Создаем таблицу payments
-                cur.execute("""
-                    CREATE TABLE payments (
-                        user_id TEXT,
-                        level INTEGER,
-                        transaction_hash TEXT,
-                        PRIMARY KEY (user_id, level)
+                        referrer_id TEXT,
+                        created_at INTEGER
                     )
                 """)
                 
                 # Добавляем предустановленных пользователей
                 preset_users = [
-                    ("79363030567", 4, "79363030567", "0QCT_wLTE_UC29vMlAMsXbjKfGIWvpmdmRZ_ChfPmA6KoWxt"),
-                    ("79683327001", 3, "79683327001", "0QCZBUZX-u0GA0ryae-6r4yS0TfJSuA7EutuwSgSLs6_8wIB"),
-                    ("79684286626", 2, "79684286626", "0QBbEep4YB5I7MB_6gAfplVR79wvUG8emX5xeuZU5G-z3N8o"),
-                    ("79253498238", 1, "79253498238", "0QBrhBVaCW2xresjfQZAaLmuOJGcbPSgLmYzqUcdoF_juPiZ")
+                    ("79363030567", 4, "79363030567", None),
+                    ("79683327001", 3, "79683327001", None),
+                    ("79684286626", 2, "79684286626", None),
+                    ("79253498238", 1, "79253498238", None)
                 ]
                 
-                for telegram_id, level, phone, address in preset_users:
+                for telegram_id, level, phone, referrer in preset_users:
                     cur.execute("""
-                        INSERT INTO users (telegram_id, level, phone_number, ton_address)
+                        INSERT INTO users (telegram_id, level, phone_number, referrer_id)
                         VALUES (%s, %s, %s, %s)
-                    """, (telegram_id, level, phone, address))
+                    """, (telegram_id, level, phone, referrer))
                 
                 conn.commit()
         logger.info("Таблицы пересозданы и инициализированы")
@@ -92,74 +81,44 @@ class Database:
                 return dict(result) if result else None
 
     def create_user(self, telegram_id: str, referrer_id: Optional[str] = None, 
-                   phone_number: Optional[str] = None, ton_address: Optional[str] = None) -> bool:
+                   phone_number: Optional[str] = None) -> bool:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO users (telegram_id, referrer_id, phone_number, ton_address, registration_timestamp)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (telegram_id, referrer_id, phone_number, ton_address, int(time.time())))
+                        INSERT INTO users (telegram_id, referrer_id, phone_number, created_at)
+                        VALUES (%s, %s, %s, %s)
+                    """, (telegram_id, referrer_id, phone_number, int(time.time())))
                     conn.commit()
                     return True
         except Exception as e:
             logger.error(f"Ошибка создания пользователя {telegram_id}: {e}")
             return False
 
-    def update_user(self, telegram_id: str, **kwargs) -> bool:
-        if not kwargs:
-            logger.warning(f"Попытка обновления пользователя {telegram_id} без параметров")
-            return False
+    def update_user(self, telegram_id: str, phone_number: Optional[str] = None) -> bool:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    set_clause = ", ".join(f"{k} = %s" for k in kwargs.keys())
-                    values = list(kwargs.values()) + [telegram_id]
-                    logger.info(f"Обновление пользователя {telegram_id} с параметрами: {kwargs}")
-                    cur.execute(f"""
-                        UPDATE users SET {set_clause}
+                    cur.execute("""
+                        UPDATE users 
+                        SET phone_number = %s
                         WHERE telegram_id = %s
-                    """, values)
+                    """, (phone_number, telegram_id))
                     conn.commit()
-                    logger.info(f"Пользователь {telegram_id} успешно обновлен")
                     return True
         except Exception as e:
             logger.error(f"Ошибка обновления пользователя {telegram_id}: {e}")
             return False
 
-    def get_recipients(self) -> List[Tuple[str, int, str]]:
+    def get_recipients(self) -> List[Tuple[str, int]]:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT phone_number, level, ton_address 
+                    SELECT phone_number, level 
                     FROM users 
                     WHERE level BETWEEN 1 AND 4
                 """)
                 return cur.fetchall()
-
-    def check_payment(self, user_id: str, level: int) -> bool:
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT transaction_hash 
-                    FROM payments 
-                    WHERE user_id = %s AND level = %s
-                """, (user_id, level))
-                return cur.fetchone() is not None
-
-    def add_payment(self, user_id: str, level: int, transaction_hash: str) -> bool:
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO payments (user_id, level, transaction_hash)
-                        VALUES (%s, %s, %s)
-                    """, (user_id, level, transaction_hash))
-                    conn.commit()
-                    return True
-        except Exception as e:
-            logger.error(f"Ошибка добавления платежа для {user_id}: {e}")
-            return False
 
 # Создаем экземпляр базы данных
 db = Database() 
