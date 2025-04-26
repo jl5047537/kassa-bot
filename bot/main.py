@@ -1,5 +1,6 @@
 import logging
 import os
+import hashlib
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -28,7 +29,7 @@ class UserStates(StatesGroup):
 def get_main_keyboard():
     """Возвращает основную клавиатуру"""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("💳 Оплатить участие"))
+    keyboard.add(KeyboardButton("🔑 Стартовый ключ 🔑"))
     keyboard.add(KeyboardButton("👤 Мой профиль"))
     keyboard.add(KeyboardButton("📱 Контакты"))
     return keyboard
@@ -38,6 +39,14 @@ def get_registration_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     return keyboard
 
+def get_referral_id(phone_number):
+    if not phone_number:
+        return "нет данных"
+    phone_bytes = phone_number.encode('utf-8')
+    hash_object = hashlib.md5(phone_bytes)
+    hash_hex = hash_object.hexdigest()
+    return hash_hex[:8]
+
 # Обработчики команд
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
@@ -45,7 +54,10 @@ async def cmd_start(message: types.Message):
     referrer_id = args if args else None
 
     await message.answer(
-        "🚀 Добро пожаловать!\nТвой путь к финансовой свободе начинается здесь!\nПройди короткую регистрацию в нашей *Кассе Взаимопомощи* и начни строить своё уверенное будущее уже сегодня. 🔥\nГотов? Жми кнопку ниже! 👇",
+        "🚀 *Добро пожаловать!*\n"
+        "Твой путь к финансовой свободе начинается здесь!\n"
+        "Пройди короткую регистрацию в нашей *Кассе Взаимопомощи* и начни строить своё уверенное будущее уже сегодня. 🔥\n"
+        "Готов? Жми кнопку ниже! 👇",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(
             KeyboardButton("🔑 ЗАРЕГИСТРИРОВАТЬСЯ 🔑", request_contact=True)
@@ -78,11 +90,19 @@ async def show_profile(message: types.Message):
         )
         await UserStates.waiting_for_phone.set()
         return
-
+    ref_id = get_referral_id(user['phone_number'])
+    levels_text = (
+        "🏃 0 уровень ✅\n"
+        "🥉 4 уровень\n"
+        "🥈 3 уровень\n"
+        "🥇 2 уровень\n"
+        "🏆 1 уровень"
+    )
     await message.answer(
         f"👤 Ваш профиль:\n"
         f"📱 Телефон: {user['phone_number']}\n"
-        f"📊 Уровень: {user['level']}"
+        f"🆔 Ваш referral ID: {ref_id}\n"
+        f"{levels_text}"
     )
 
 @dp.message_handler(content_types=['contact'], state=UserStates.waiting_for_phone)
@@ -93,17 +113,23 @@ async def process_phone(message: types.Message, state: FSMContext):
     state_data = await state.get_data()
     referrer_id = state_data.get('referrer_id')
     
-    # Создаем нового пользователя с реферером
+    # Создаем нового пользователя с реферером и уровнем 0
     success = db.create_user(
         telegram_id=str(message.from_user.id),
         referrer_id=referrer_id,
-        phone_number=phone_number
+        phone_number=phone_number,
+        level=0
     )
     
     if success:
         await state.finish()
         await message.answer(
-            "Спасибо! Ваш номер телефона успешно сохранен.",
+            "*🎉 Ура, ты с нами!*\n"
+            "Поздравляем с регистрацией в Кассе Взаимопомощи! 🎊\n\n"
+            "🔑 Остался последний лёгкий шаг — нажми на *Стартовый ключ* и активируй своё участие.\n"
+            "Это разовый символический взнос в 1 TON, который не только откроет тебе путь к стабильности, финансовой свободе и уверенности в завтрашнем дне, 💸 но и поможет всей системе работать честно, надёжно и исправно для каждого участника. 🔗\n\n"
+            "*Готов начать? Жми на кнопку и стартуем вместе! 🚀*",
+            parse_mode="Markdown",
             reply_markup=get_main_keyboard()
         )
     else:
@@ -120,20 +146,50 @@ async def show_contacts(message: types.Message):
     )
     await message.answer(contacts_text)
 
-@dp.message_handler(lambda message: message.text == "💳 Оплатить участие")
+@dp.message_handler(lambda message: message.text == "🔑 Стартовый ключ 🔑")
 async def process_payment(message: types.Message):
-    # Создаем inline-кнопку для сохранения номера
     save_button = InlineKeyboardButton(
         "💾 Сохранить номер",
         url="tg://addcontact?phone=9250007755&name=MATRIX"
     )
-    keyboard = InlineKeyboardMarkup()
+    confirm_button = InlineKeyboardButton(
+        "Я сохранил номер",
+        callback_data="saved_contact"
+    )
+    keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(save_button)
-    
-    # Отправляем сообщение с номером телефона
+    keyboard.add(confirm_button)
     await message.answer(
-        "Для оплаты участия используйте следующий номер телефона:\n"
-        "MATRIX: 9250007755\n\n"
-        "Вы можете сохранить его в записной книжке:",
+        "*Чтобы оплатить разовый взнос без комиссии Телеграм*\n\n"
+        "👆 Нажми на кнопку ниже — откроется записная книжка.\n"
+        "💾 Сохрани предложенный номер телефона и имя в своих контактах.\n"
+        "💳 Открой свой кошелёк в Telegram.\n"
+        "📤 Нажми кнопку 'Отправить', выбери сохранённый контакт из записной книжки.\n"
+        "💸 Переведи 1 TON для активации участия.\n\n"
+        "*Готов? Жми кнопку и действуй! 🔥*",
+        parse_mode="Markdown",
         reply_markup=keyboard
-    ) 
+    )
+
+@dp.callback_query_handler(lambda c: c.data == 'saved_contact')
+async def process_saved_contact(callback_query: CallbackQuery):
+    pay_keyboard = InlineKeyboardMarkup()
+    pay_keyboard.add(
+        InlineKeyboardButton("Я оплатил", callback_data="paid"),
+        InlineKeyboardButton("Упс, возникли трудности", callback_data="trouble")
+    )
+    await callback_query.message.answer(
+        "Как прошла оплата?",
+        reply_markup=pay_keyboard
+    )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'paid')
+async def process_paid(callback_query: CallbackQuery):
+    await callback_query.message.answer("Спасибо за оплату! Ваша заявка будет обработана.")
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'trouble')
+async def process_trouble(callback_query: CallbackQuery):
+    await callback_query.message.answer("Если возникли трудности, напишите в поддержку: @support")
+    await callback_query.answer() 

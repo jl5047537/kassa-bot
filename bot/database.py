@@ -81,14 +81,14 @@ class Database:
                 return dict(result) if result else None
 
     def create_user(self, telegram_id: str, referrer_id: Optional[str] = None, 
-                   phone_number: Optional[str] = None) -> bool:
+                   phone_number: Optional[str] = None, level: int = 0) -> bool:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO users (telegram_id, referrer_id, phone_number, created_at)
-                        VALUES (%s, %s, %s, %s)
-                    """, (telegram_id, referrer_id, phone_number, int(time.time())))
+                        INSERT INTO users (telegram_id, referrer_id, phone_number, level, created_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (telegram_id, referrer_id, phone_number, level, int(time.time())))
                     conn.commit()
                     return True
         except Exception as e:
