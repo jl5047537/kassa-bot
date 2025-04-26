@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.utils import executor
 from bot.database import db
 
@@ -34,28 +34,39 @@ def get_main_keyboard():
     return keyboard
 
 def get_registration_keyboard():
+    # Оставляем пустую клавиатуру, чтобы не мешать сценарию
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("📱 Поделиться номером", request_contact=True))
     return keyboard
 
 # Обработчики команд
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
-    # Получаем аргументы команды /start
     args = message.get_args()
     referrer_id = args if args else None
-    
+
     await message.answer(
-        "Для начала работы необходимо поделиться номером телефона:",
-        reply_markup=get_registration_keyboard()
+        "🚀 Добро пожаловать!\nТвой путь к финансовой свободе начинается здесь!\nПройди короткую регистрацию в нашей *Кассе Взаимопомощи* и начни строить своё уверенное будущее уже сегодня. 🔥\nГотов? Жми кнопку ниже! 👇",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton("Зарегистрироваться", callback_data="register")
+        )
     )
-    
-    # Если есть реферер, сохраняем его ID в состояние
+
     if referrer_id:
         await UserStates.waiting_for_phone.set()
         await state.update_data(referrer_id=referrer_id)
     else:
         await UserStates.waiting_for_phone.set()
+
+@dp.callback_query_handler(lambda c: c.data == 'register')
+async def process_register_callback(callback_query: CallbackQuery):
+    reg_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    reg_keyboard.add(KeyboardButton("Зарегистрироваться", request_contact=True))
+    await callback_query.message.answer(
+        "Пожалуйста, отправьте свой контакт для регистрации:",
+        reply_markup=reg_keyboard
+    )
+    await callback_query.answer()
 
 @dp.message_handler(lambda message: message.text == "👤 Мой профиль")
 async def show_profile(message: types.Message):
