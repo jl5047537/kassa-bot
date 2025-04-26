@@ -21,7 +21,6 @@ class ReferralCircle(ReferralCircleBase):
 class ReferralBase(BaseModel):
     circle_id: str
     referral_id: str
-    wallet_connected: bool = False
 
 class ReferralCreate(ReferralBase):
     pass

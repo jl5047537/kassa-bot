@@ -16,9 +16,6 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str
     USER_CONFIG_FILE: str = "user_config.json"
     
-    TON_API_KEY: str
-    TON_API_URL: str
-    
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

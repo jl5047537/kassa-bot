@@ -22,9 +22,8 @@ class Referral(Base):
     __tablename__ = "referrals"
 
     id = Column(String, primary_key=True, index=True)
-    circle_id = Column(String, ForeignKey("referral_circles.id"))
-    referral_id = Column(String, ForeignKey("users.id"))
-    wallet_connected = Column(Boolean, default=False)
+    circle_id = Column(String, ForeignKey("referral_circles.id"), nullable=False)
+    referral_id = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Отношения

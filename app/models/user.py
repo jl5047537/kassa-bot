@@ -12,9 +12,8 @@ class User(Base):
     avatar = Column(String, nullable=True)
     user_link = Column(String, nullable=True)
     referral_id = Column(String, ForeignKey("users.id"), nullable=True)
-    level = Column(Integer, default=5)
-    ton_wallet_address = Column(String, nullable=True)
-    wallet_status = Column(Boolean, default=False)
+    level = Column(Integer, default=1)
+    phone_number = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
