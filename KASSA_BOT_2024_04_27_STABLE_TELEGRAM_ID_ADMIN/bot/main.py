@@ -141,14 +141,42 @@ async def show_profile(message: types.Message):
 @dp.message_handler(content_types=['contact'], state=UserStates.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
     phone_number = message.contact.phone_number
+    user_id = str(message.from_user.id)
     
     # Получаем данные из состояния
     state_data = await state.get_data()
     referrer_id = state_data.get('referrer_id')
     
-    # Создаем нового пользователя с реферером и уровнем 0
+    # Проверяем, существует ли пользователь
+    existing_user = db.get_user(user_id)
+    if existing_user:
+        # Формируем сообщение о текущем статусе
+        referrals_count = db.get_referrals_count(user_id)
+        current_level = existing_user.get('level', 0)
+        
+        status_text = (
+            f"Вы уже зарегистрированы в системе!\n\n"
+            f"Ваш текущий статус:\n"
+            f"• Уровень: {current_level}\n"
+            f"• Рефералов: {referrals_count}\n"
+            f"• Статус оплаты: {'✅ Оплачено' if current_level > 0 else '❌ Не оплачено'}\n\n"
+        )
+        
+        if current_level == 0:
+            status_text += "Для активации нажмите кнопку '🔑 Стартовый Ключ'"
+        else:
+            status_text += "Вы можете приглашать друзей и получать бонусы!"
+        
+        await state.finish()
+        await message.answer(
+            status_text,
+            reply_markup=get_main_keyboard()
+        )
+        return
+    
+    # Если пользователь не существует, создаем новую запись
     success = db.create_user(
-        telegram_id=str(message.from_user.id),
+        telegram_id=user_id,
         referrer_id=referrer_id,
         phone_number=phone_number,
         level=0
