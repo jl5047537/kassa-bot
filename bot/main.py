@@ -51,6 +51,38 @@ def get_referral_id(phone_number):
 # Обработчики команд
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
+    # Получаем данные пользователя
+    user_id = str(message.from_user.id)
+    username = message.from_user.username
+    
+    logger.info(f"User started bot: id={user_id}, username={username}")
+    
+    # Проверяем, является ли пользователь администратором
+    is_admin = db.is_admin(username) or db.is_admin(user_id)
+    is_main_admin = db.is_main_admin(username) or db.is_main_admin(user_id)
+    
+    logger.info(f"Admin check results: is_admin={is_admin}, is_main_admin={is_main_admin}")
+    
+    if is_admin or is_main_admin:
+        # Формируем приветственное сообщение
+        welcome_text = "👋 Добро пожаловать в панель администратора!\n\n"
+        if is_main_admin:
+            welcome_text += "👑 Вы главный администратор\n\n"
+        else:
+            welcome_text += "👤 Вы администратор\n\n"
+            
+        welcome_text += "📋 Доступные команды:\n"
+        welcome_text += "• /admin - показать это сообщение\n"
+        welcome_text += "• /admins - показать список администраторов\n"
+        
+        if is_main_admin:
+            welcome_text += "• /add_admin @username - добавить администратора\n"
+            welcome_text += "• /remove_admin @username - удалить администратора\n"
+        
+        await message.answer(welcome_text)
+        return
+
+    # Если не администратор - показываем обычное меню
     args = message.get_args()
     referrer_id = args if args else None
 
@@ -210,11 +242,11 @@ async def process_paid(callback_query: CallbackQuery):
     # Создаем клавиатуру для подтверждения/отклонения
     confirm_keyboard = InlineKeyboardMarkup()
     confirm_keyboard.add(
-        InlineKeyboardButton("✅ Подтвердить", callback_data="confirm_payment"),
-        InlineKeyboardButton("❌ Отклонить", callback_data="reject_payment")
+        InlineKeyboardButton("✅ Подтвердить", callback_data=f"confirm_payment:{user_id}"),
+        InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_payment:{user_id}")
     )
     
-    # Формируем сообщение для администратора
+    # Формируем сообщение для администраторов
     admin_message = (
         f"🔔 Новый платеж!\n"
         f"Пользователь ID: {user_id}\n"
@@ -223,40 +255,71 @@ async def process_paid(callback_query: CallbackQuery):
         f"Пожалуйста, проверьте свой кошелек и подтвердите или отклоните платеж"
     )
     
-    # Отправляем сообщение администратору
-    admin_username = "@DeeNastiya"
-    try:
-        await bot.send_message(
-            chat_id=admin_username,
-            text=admin_message,
-            reply_markup=confirm_keyboard
-        )
-        logger.info(f"Сообщение отправлено администратору {admin_username}")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения администратору: {e}")
+    # Получаем список активных администраторов
+    admins = db.get_active_admins()
+    sent_to_admins = False
+    
+    # Отправляем сообщение каждому администратору
+    for admin in admins:
+        try:
+            await bot.send_message(
+                chat_id=admin['telegram_id'],
+                text=admin_message,
+                reply_markup=confirm_keyboard
+            )
+            sent_to_admins = True
+            logger.info(f"Сообщение отправлено администратору {admin['telegram_id']}")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения администратору {admin['telegram_id']}: {e}")
+    
+    if not sent_to_admins:
         await callback_query.message.answer(
-            "Произошла ошибка при отправке уведомления администратору. Пожалуйста, попробуйте позже."
+            "Произошла ошибка при отправке уведомления администраторам. Пожалуйста, попробуйте позже."
         )
+        await callback_query.answer()
+        return
     
     # Отправляем сообщение пользователю
     await callback_query.message.answer(
         "Ваш платеж отправлен на проверку. Пожалуйста, подождите подтверждения.",
-        reply_markup=confirm_keyboard
+        reply_markup=None
     )
     await callback_query.answer()
 
-@dp.callback_query_handler(lambda c: c.data == 'confirm_payment')
-async def confirm_payment(callback_query: CallbackQuery):
-    """Обработчик подтверждения платежа"""
-    # Здесь будет логика подтверждения платежа
-    await callback_query.message.answer("Платеж подтвержден!")
-    await callback_query.answer()
+@dp.callback_query_handler(lambda c: c.data.startswith(('confirm_payment:', 'reject_payment:')))
+async def process_payment_action(callback_query: CallbackQuery):
+    """Обработчик подтверждения/отклонения платежа"""
+    if not db.is_admin(str(callback_query.from_user.id)):
+        await callback_query.answer("У вас нет прав администратора")
+        return
 
-@dp.callback_query_handler(lambda c: c.data == 'reject_payment')
-async def reject_payment(callback_query: CallbackQuery):
-    """Обработчик отклонения платежа"""
-    # Здесь будет логика отклонения платежа
-    await callback_query.message.answer("Платеж отклонен!")
+    action, user_id = callback_query.data.split(':')
+    user = db.get_user(user_id)
+    
+    if not user:
+        await callback_query.message.answer("Ошибка: пользователь не найден")
+        await callback_query.answer()
+        return
+
+    admin_id = str(callback_query.from_user.id)
+    if action == 'confirm_payment':
+        # Здесь можно добавить логику обновления статуса платежа в базе данных
+        await bot.send_message(
+            chat_id=user_id,
+            text="✅ Ваш платеж подтвержден! Спасибо за оплату."
+        )
+        await callback_query.message.edit_text(
+            f"✅ Платеж подтвержден администратором {admin_id}"
+        )
+    else:
+        await bot.send_message(
+            chat_id=user_id,
+            text="❌ Ваш платеж отклонен. Пожалуйста, проверьте сумму и получателя платежа."
+        )
+        await callback_query.message.edit_text(
+            f"❌ Платеж отклонен администратором {admin_id}"
+        )
+    
     await callback_query.answer()
 
 @dp.callback_query_handler(lambda c: c.data == 'trouble')
@@ -284,4 +347,92 @@ async def open_wallet(message: types.Message):
 async def process_wallet_callback(callback_query: types.CallbackQuery):
     """Обработчик нажатия на кнопку открытия кошелька"""
     await callback_query.message.answer("Пожалуйста, используйте команду /wallet в любом чате для открытия кошелька.")
-    await callback_query.answer() 
+    await callback_query.answer()
+
+# Команды администратора
+@dp.message_handler(commands=['admin'])
+async def cmd_admin(message: types.Message):
+    """Показывает список команд администратора"""
+    if not db.is_admin(message.from_user.username):
+        await message.answer("У вас нет прав администратора.")
+        return
+
+    is_main = db.is_main_admin(message.from_user.username)
+    commands = [
+        "📋 Список команд администратора:",
+        "• /admin - показать это сообщение",
+        "• /admins - показать список администраторов"
+    ]
+    
+    if is_main:
+        commands.extend([
+            "• /add_admin @username - добавить администратора",
+            "• /remove_admin @username - удалить администратора"
+        ])
+    
+    await message.answer("\n".join(commands))
+
+@dp.message_handler(commands=['admins'])
+async def cmd_list_admins(message: types.Message):
+    """Показывает список администраторов"""
+    if not db.is_admin(message.from_user.username):
+        await message.answer("У вас нет прав администратора.")
+        return
+
+    admins = db.get_active_admins()
+    if not admins:
+        await message.answer("Список администраторов пуст.")
+        return
+
+    admin_list = ["👥 Список администраторов:"]
+    for admin in admins:
+        prefix = "👑" if admin['is_main_admin'] else "👤"
+        admin_list.append(f"{prefix} {admin['username']}")
+
+    await message.answer("\n".join(admin_list))
+
+@dp.message_handler(commands=['add_admin'])
+async def cmd_add_admin(message: types.Message):
+    """Добавляет нового администратора"""
+    if not db.is_main_admin(message.from_user.username):
+        await message.answer("Только главный администратор может добавлять новых администраторов.")
+        return
+
+    args = message.get_args()
+    if not args:
+        await message.answer("Укажите username администратора.\nПример: /add_admin @username")
+        return
+
+    username = args.strip()
+    if not username.startswith('@'):
+        username = f"@{username}"
+
+    if db.add_admin(username, message.from_user.username):
+        await message.answer(f"✅ Администратор {username} успешно добавлен.")
+    else:
+        await message.answer(f"❌ Не удалось добавить администратора {username}.")
+
+@dp.message_handler(commands=['remove_admin'])
+async def cmd_remove_admin(message: types.Message):
+    """Удаляет администратора"""
+    if not db.is_main_admin(message.from_user.username):
+        await message.answer("Только главный администратор может удалять администраторов.")
+        return
+
+    args = message.get_args()
+    if not args:
+        await message.answer("Укажите username администратора.\nПример: /remove_admin @username")
+        return
+
+    username = args.strip()
+    if not username.startswith('@'):
+        username = f"@{username}"
+
+    if username == os.getenv('MAIN_ADMIN_USERNAME'):
+        await message.answer("❌ Нельзя удалить главного администратора.")
+        return
+
+    if db.remove_admin(username, message.from_user.username):
+        await message.answer(f"✅ Администратор {username} успешно удален.")
+    else:
+        await message.answer(f"❌ Не удалось удалить администратора {username}.") 

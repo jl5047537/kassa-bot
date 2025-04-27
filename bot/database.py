@@ -42,6 +42,7 @@ class Database:
                 # Удаляем существующие таблицы
                 cur.execute("""
                     DROP TABLE IF EXISTS users;
+                    DROP TABLE IF EXISTS admins;
                 """)
                 
                 # Создаем таблицу users
@@ -52,6 +53,17 @@ class Database:
                         level INTEGER DEFAULT 1,
                         phone_number TEXT,
                         referrer_id TEXT,
+                        created_at INTEGER
+                    )
+                """)
+                
+                # Создаем таблицу admins
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS admins (
+                        id SERIAL PRIMARY KEY,
+                        telegram_id TEXT UNIQUE,
+                        is_main_admin BOOLEAN DEFAULT FALSE,
+                        is_active BOOLEAN DEFAULT TRUE,
                         created_at INTEGER
                     )
                 """)
@@ -69,6 +81,32 @@ class Database:
                         INSERT INTO users (telegram_id, level, phone_number, referrer_id)
                         VALUES (%s, %s, %s, %s)
                     """, (telegram_id, level, phone, referrer))
+                
+                # Добавляем главного администратора
+                main_admin_id = os.getenv('MAIN_ADMIN_ID')
+                if main_admin_id:
+                    logger.info(f"Adding main admin with ID: {main_admin_id}")
+                    
+                    # Сначала удаляем старую запись если она есть
+                    cur.execute("""
+                        DELETE FROM admins WHERE telegram_id = %s
+                    """, (main_admin_id,))
+                    
+                    # Добавляем новую запись
+                    cur.execute("""
+                        INSERT INTO admins (telegram_id, is_main_admin, is_active, created_at)
+                        VALUES (%s, TRUE, TRUE, %s)
+                        RETURNING id
+                    """, (main_admin_id, int(time.time())))
+                    
+                    result = cur.fetchone()
+                    logger.info(f"Main admin record after insert: {result}")
+                    conn.commit()
+                    
+                    if result:
+                        logger.info("Main admin added successfully")
+                    else:
+                        logger.error("Failed to add main admin")
                 
                 conn.commit()
         logger.info("Таблицы пересозданы и инициализированы")
@@ -119,6 +157,89 @@ class Database:
                     WHERE level BETWEEN 1 AND 4
                 """)
                 return cur.fetchall()
+
+    def is_admin(self, telegram_id: str) -> bool:
+        """Проверяет, является ли пользователь администратором"""
+        if not telegram_id:
+            return False
+            
+        logger.info(f"Checking admin status for telegram_id: {telegram_id}")
+        
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT is_active FROM admins 
+                    WHERE telegram_id = %s AND is_active = TRUE
+                """, (telegram_id,))
+                result = cur.fetchone()
+                logger.info(f"Admin check result: {result}")
+                return bool(result)
+
+    def is_main_admin(self, telegram_id: str) -> bool:
+        """Проверяет, является ли пользователь главным администратором"""
+        if not telegram_id:
+            return False
+            
+        logger.info(f"Checking main admin status for telegram_id: {telegram_id}")
+        
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT is_main_admin FROM admins 
+                    WHERE telegram_id = %s 
+                    AND is_main_admin = TRUE 
+                    AND is_active = TRUE
+                """, (telegram_id,))
+                result = cur.fetchone()
+                logger.info(f"Main admin check result: {result}")
+                return bool(result)
+
+    def add_admin(self, telegram_id: str, added_by: str) -> bool:
+        """Добавляет нового администратора"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO admins (telegram_id, created_at)
+                        VALUES (%s, %s)
+                        ON CONFLICT (telegram_id) 
+                        DO UPDATE SET is_active = TRUE
+                        RETURNING id
+                    """, (telegram_id, int(time.time())))
+                    conn.commit()
+                    return bool(cur.fetchone())
+        except Exception as e:
+            logger.error(f"Ошибка добавления администратора {telegram_id}: {e}")
+            return False
+
+    def remove_admin(self, telegram_id: str, removed_by: str) -> bool:
+        """Деактивирует администратора"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE admins 
+                        SET is_active = FALSE
+                        WHERE telegram_id = %s AND is_main_admin = FALSE
+                        RETURNING id
+                    """, (telegram_id,))
+                    conn.commit()
+                    return bool(cur.fetchone())
+        except Exception as e:
+            logger.error(f"Ошибка удаления администратора {telegram_id}: {e}")
+            return False
+
+    def get_active_admins(self) -> List[dict]:
+        """Возвращает список активных администраторов"""
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute("""
+                    SELECT telegram_id, is_main_admin 
+                    FROM admins 
+                    WHERE is_active = TRUE
+                    ORDER BY is_main_admin DESC, telegram_id
+                """)
+                return [dict(row) for row in cur.fetchall()]
 
 # Создаем экземпляр базы данных
 db = Database() 
