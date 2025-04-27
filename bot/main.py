@@ -26,13 +26,25 @@ class UserStates(StatesGroup):
     waiting_for_phone = State()
 
 # Клавиатуры
-def get_main_keyboard():
-    """Возвращает основную клавиатуру"""
+def get_main_keyboard(user_id: str = None):
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("🔑 Стартовый ключ 🔑"))
-    keyboard.add(KeyboardButton("👤 Мой профиль"))
-    keyboard.add(KeyboardButton("📱 Контакты"))
-    keyboard.add(KeyboardButton("💎 Запустить Бот ТГ Кошелька"))
+    
+    if user_id:
+        user = db.get_user(user_id)
+        if user and user.get('level', 0) > 0:
+            # Для активных пользователей (уровень > 0)
+            keyboard.add(KeyboardButton("👥 Пригласить Друзей"))
+            keyboard.add(KeyboardButton("📊 Профиль"))
+            keyboard.add(KeyboardButton("❓ Помощь"))
+        else:
+            # Для неактивных пользователей
+            keyboard.add(KeyboardButton("🔑 Стартовый Ключ"))
+            keyboard.add(KeyboardButton("📊 Профиль"), KeyboardButton("❓ Помощь"))
+    else:
+        # Если user_id не указан, показываем базовые кнопки
+        keyboard.add(KeyboardButton("🔑 Стартовый Ключ"))
+        keyboard.add(KeyboardButton("📊 Профиль"), KeyboardButton("❓ Помощь"))
+    
     return keyboard
 
 def get_registration_keyboard():
@@ -48,9 +60,17 @@ def get_referral_id(phone_number):
     hash_hex = hash_object.hexdigest()
     return hash_hex[:8]
 
+def get_admin_keyboard():
+    """Возвращает клавиатуру для администратора"""
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(KeyboardButton("👥 Список Администраторов"))
+    keyboard.add(KeyboardButton("➕ Добавить Админа"))
+    keyboard.add(KeyboardButton("➖ Удалить Админа"))
+    return keyboard
+
 # Обработчики команд
 @dp.message_handler(commands=['start'])
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
     # Получаем данные пользователя
     user_id = str(message.from_user.id)
     username = message.from_user.username
@@ -58,33 +78,35 @@ async def cmd_start(message: types.Message):
     logger.info(f"User started bot: id={user_id}, username={username}")
     
     # Проверяем, является ли пользователь администратором
-    is_admin = db.is_admin(username) or db.is_admin(user_id)
-    is_main_admin = db.is_main_admin(username) or db.is_main_admin(user_id)
+    is_admin = db.is_admin(str(message.from_user.id))
+    is_main_admin = db.is_main_admin(str(message.from_user.id))
     
     logger.info(f"Admin check results: is_admin={is_admin}, is_main_admin={is_main_admin}")
     
     if is_admin or is_main_admin:
-        # Формируем приветственное сообщение
-        welcome_text = "👋 Добро пожаловать в панель администратора!\n\n"
-        if is_main_admin:
-            welcome_text += "👑 Вы главный администратор\n\n"
-        else:
-            welcome_text += "👤 Вы администратор\n\n"
-            
-        welcome_text += "📋 Доступные команды:\n"
-        welcome_text += "• /admin - показать это сообщение\n"
-        welcome_text += "• /admins - показать список администраторов\n"
+        # Создаем клавиатуру администратора
+        keyboard = get_admin_keyboard()
         
-        if is_main_admin:
-            welcome_text += "• /add_admin @username - добавить администратора\n"
-            welcome_text += "• /remove_admin @username - удалить администратора\n"
-        
-        await message.answer(welcome_text)
+        # Отправляем приветственное сообщение с клавиатурой
+        await message.answer(
+            "🌟 *Добро пожаловать в центр управления успехом!* 🌟\n\n"
+            "*Наш Божественный Админ*, ваша энергия и лидерство — настоящий двигатель этого проекта! 🚀\n"
+            "Вы не просто управляете процессами — вы вдохновляете!\n\n"
+            "*Сегодня снова ваш день творить великие перемены!* 🔥",
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
         return
 
     # Если не администратор - показываем обычное меню
     args = message.get_args()
-    referrer_id = args if args else None
+    if args:  # Если есть реферальный ID
+        await state.set_state(UserStates.waiting_for_phone.state)
+        await state.update_data(referrer_id=args)
+        logger.info(f"Saved referrer_id: {args} for user {user_id}")
+    else:
+        await state.set_state(UserStates.waiting_for_phone.state)
+        logger.info(f"No referrer_id for user {user_id}")
 
     await message.answer(
         "🚀 *Добро пожаловать!*\n"
@@ -93,15 +115,9 @@ async def cmd_start(message: types.Message):
         "Готов? Жми кнопку ниже! 👇",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(
-            KeyboardButton("🔑 ЗАРЕГИСТРИРОВАТЬСЯ 🔑", request_contact=True)
+            KeyboardButton("🔑 Зарегистрироваться 🔑", request_contact=True)
         )
     )
-
-    if referrer_id:
-        await UserStates.waiting_for_phone.set()
-        await state.update_data(referrer_id=referrer_id)
-    else:
-        await UserStates.waiting_for_phone.set()
 
 @dp.callback_query_handler(lambda c: c.data == 'register', state='*')
 async def process_register_callback(callback_query: CallbackQuery):
@@ -113,7 +129,7 @@ async def process_register_callback(callback_query: CallbackQuery):
     )
     await callback_query.answer("Кнопка нажата!")
 
-@dp.message_handler(lambda message: message.text == "👤 Мой профиль")
+@dp.message_handler(lambda message: message.text == "📊 Профиль")
 async def show_profile(message: types.Message):
     user = db.get_user(str(message.from_user.id))
     if not user:
@@ -123,32 +139,78 @@ async def show_profile(message: types.Message):
         )
         await UserStates.waiting_for_phone.set()
         return
+
     ref_id = get_referral_id(user['phone_number'])
-    levels_text = (
-        "🏃 0 уровень ✅\n"
-        "🥉 4 уровень\n"
-        "🥈 3 уровень\n"
-        "🥇 2 уровень\n"
-        "🏆 1 уровень"
-    )
-    await message.answer(
-        f"👤 Ваш профиль:\n"
+    referrals_count = db.get_referrals_count(str(message.from_user.id))
+    current_level = user.get('level', 0)
+
+    # Формируем текст с уровнями и прогрессом
+    levels_text = ""
+    for level in range(1, 5):
+        required_referrals = level * 2  # Например, для перехода на уровень нужно в 2 раза больше рефералов
+        is_current = level == current_level
+        is_completed = level < current_level
+        is_locked = level > current_level
+        
+        level_emoji = "✅" if is_completed else "🔒" if is_locked else "🏆" if is_current else "🏃"
+        level_status = " (Текущий)" if is_current else " (Заблокирован)" if is_locked else " (Завершен)" if is_completed else ""
+        
+        progress = f"{referrals_count}/{required_referrals}" if not is_completed else "✅"
+        
+        levels_text += f"{level_emoji} {level} уровень {level_status} - {progress}\n"
+
+    profile_text = (
+        f"👤 *Ваш профиль*\n\n"
         f"📱 Телефон: {user['phone_number']}\n"
-        f"🆔 Ваш referral ID: {ref_id}\n"
-        f"{levels_text}"
+        f"🆔 Ваш referral ID: *{ref_id}*\n"
+        f"👥 Приглашено друзей: *{referrals_count}*\n\n"
+        f"*Уровни:*\n{levels_text}"
+    )
+
+    await message.answer(
+        profile_text,
+        parse_mode="Markdown"
     )
 
 @dp.message_handler(content_types=['contact'], state=UserStates.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
     phone_number = message.contact.phone_number
+    user_id = str(message.from_user.id)
     
     # Получаем данные из состояния
     state_data = await state.get_data()
     referrer_id = state_data.get('referrer_id')
     
-    # Создаем нового пользователя с реферером и уровнем 0
+    # Проверяем, существует ли пользователь
+    existing_user = db.get_user(user_id)
+    if existing_user:
+        # Формируем сообщение о текущем статусе
+        referrals_count = db.get_referrals_count(user_id)
+        current_level = existing_user.get('level', 0)
+        
+        status_text = (
+            f"Вы уже зарегистрированы в системе!\n\n"
+            f"Ваш текущий статус:\n"
+            f"• Уровень: {current_level}\n"
+            f"• Рефералов: {referrals_count}\n"
+            f"• Статус оплаты: {'✅ Оплачено' if current_level > 0 else '❌ Не оплачено'}\n\n"
+        )
+        
+        if current_level == 0:
+            status_text += "Для активации нажмите кнопку '🔑 Стартовый Ключ'"
+        else:
+            status_text += "Вы можете приглашать друзей и получать бонусы!"
+        
+        await state.finish()
+        await message.answer(
+            status_text,
+            reply_markup=get_main_keyboard(user_id)
+        )
+        return
+    
+    # Если пользователь не существует, создаем новую запись
     success = db.create_user(
-        telegram_id=str(message.from_user.id),
+        telegram_id=user_id,
         referrer_id=referrer_id,
         phone_number=phone_number,
         level=0
@@ -163,14 +225,14 @@ async def process_phone(message: types.Message, state: FSMContext):
             "Это разовый символический взнос в 4 TON, который не только откроет тебе путь к стабильности, финансовой свободе и уверенности в завтрашнем дне, 💸 но и поможет всей системе работать честно, надёжно и исправно для каждого участника. 🔗\n\n"
             "*Готов начать? Жми на кнопку и стартуем вместе! 🚀*",
             parse_mode="Markdown",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
     else:
         await message.answer(
             "Произошла ошибка при сохранении данных. Пожалуйста, попробуйте позже."
         )
 
-@dp.message_handler(lambda message: message.text == "📱 Контакты")
+@dp.message_handler(lambda message: message.text == "❓ Помощь")
 async def show_contacts(message: types.Message):
     contacts_text = (
         "📱 Контакты для связи:\n\n"
@@ -179,7 +241,7 @@ async def show_contacts(message: types.Message):
     )
     await message.answer(contacts_text)
 
-@dp.message_handler(lambda message: message.text == "🔑 Стартовый ключ 🔑")
+@dp.message_handler(lambda message: message.text == "🔑 Стартовый Ключ")
 async def process_payment(message: types.Message):
     save_button = InlineKeyboardButton(
         "💾 Сохранить Контакт",
@@ -303,19 +365,37 @@ async def process_payment_action(callback_query: CallbackQuery):
 
     admin_id = str(callback_query.from_user.id)
     if action == 'confirm_payment':
-        # Здесь можно добавить логику обновления статуса платежа в базе данных
+        # Обновляем уровень пользователя в базе данных
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE users 
+                    SET level = 1
+                    WHERE telegram_id = %s
+                """, (user_id,))
+                conn.commit()
+        
+        # Отправляем сообщение пользователю с обновленной клавиатурой
         await bot.send_message(
             chat_id=user_id,
-            text="✅ Ваш платеж подтвержден! Спасибо за оплату."
+            text="✅ Ваш платеж подтвержден! Спасибо за оплату.\n\n"
+                 "Теперь вы можете приглашать друзей и получать бонусы!",
+            reply_markup=get_main_keyboard(user_id)
         )
+        
+        # Обновляем сообщение администратора
         await callback_query.message.edit_text(
             f"✅ Платеж подтвержден администратором {admin_id}"
         )
     else:
+        # Отправляем сообщение пользователю об отклонении платежа
         await bot.send_message(
             chat_id=user_id,
-            text="❌ Ваш платеж отклонен. Пожалуйста, проверьте сумму и получателя платежа."
+            text="❌ Ваш платеж отклонен. Пожалуйста, проверьте сумму и получателя платежа.",
+            reply_markup=get_main_keyboard(user_id)
         )
+        
+        # Обновляем сообщение администратора
         await callback_query.message.edit_text(
             f"❌ Платеж отклонен администратором {admin_id}"
         )
@@ -349,33 +429,117 @@ async def process_wallet_callback(callback_query: types.CallbackQuery):
     await callback_query.message.answer("Пожалуйста, используйте команду /wallet в любом чате для открытия кошелька.")
     await callback_query.answer()
 
+async def check_and_update_level(user_id: str):
+    user = db.get_user(user_id)
+    if not user:
+        return
+
+    current_level = user.get('level', 0)
+    referrals_count = db.get_referrals_count(user_id)
+    
+    # Проверяем, достиг ли пользователь следующего уровня
+    next_level = current_level + 1
+    required_referrals = next_level * 2  # Например, для перехода на уровень нужно в 2 раза больше рефералов
+    
+    if referrals_count >= required_referrals and next_level <= 4:
+        db.update_user_level(user_id, next_level)
+        return True
+    return False
+
+@dp.message_handler(lambda message: message.text == "👥 Пригласить Друзей")
+async def invite_friends(message: types.Message):
+    user = db.get_user(str(message.from_user.id))
+    if not user:
+        await message.answer(
+            "Для начала работы зарегистрируйтесь:",
+            reply_markup=get_registration_keyboard()
+        )
+        await UserStates.waiting_for_phone.set()
+        return
+
+    ref_id = get_referral_id(user['phone_number'])
+    
+    # Получаем username бота
+    bot_info = await bot.get_me()
+    bot_username = bot_info.username
+    
+    # Создаем inline-кнопку для шаринга
+    share_button = InlineKeyboardButton(
+        "👥 Поделиться",
+        switch_inline_query=f"Присоединяйся к Кассе Взаимопомощи! https://t.me/{bot_username}?start={ref_id}"
+    )
+    share_keyboard = InlineKeyboardMarkup()
+    share_keyboard.add(share_button)
+    
+    invite_text = (
+        f"🎯 *Пригласи друзей и получи бонусы!*\n\n"
+        f"Твой referral ID: *{ref_id}*\n\n"
+        f"*Как пригласить друзей:*\n"
+        f"1️⃣ Отправь своему другу эту ссылку:\n"
+        f"https://t.me/{bot_username}?start={ref_id}\n\n"
+        f"*За каждого приглашенного друга ты получишь бонусы!* 🎁"
+    )
+
+    # Отправляем сообщение с кнопкой шаринга
+    await message.answer(
+        invite_text,
+        parse_mode="Markdown",
+        reply_markup=share_keyboard
+    )
+
+    # Проверяем и обновляем уровень после приглашения
+    if await check_and_update_level(str(message.from_user.id)):
+        await message.answer(
+            "🎉 Поздравляем! Вы достигли нового уровня!",
+            reply_markup=get_main_keyboard()
+        )
+
+@dp.message_handler(content_types=['contact'])
+async def handle_contact(message: types.Message):
+    """Обработчик выбора контакта"""
+    if message.contact:
+        # Возвращаем основное меню
+        await message.answer(
+            "Отлично! Теперь отправьте вашему другу сообщение с реферальным ID.",
+            reply_markup=get_main_keyboard()
+        )
+
 # Команды администратора
 @dp.message_handler(commands=['admin'])
 async def cmd_admin(message: types.Message):
-    """Показывает список команд администратора"""
-    if not db.is_admin(message.from_user.username):
+    """Показывает панель администратора"""
+    if not db.is_admin(str(message.from_user.id)):
         await message.answer("У вас нет прав администратора.")
         return
 
-    is_main = db.is_main_admin(message.from_user.username)
-    commands = [
-        "📋 Список команд администратора:",
-        "• /admin - показать это сообщение",
-        "• /admins - показать список администраторов"
-    ]
+    is_main = db.is_main_admin(str(message.from_user.id))
+    welcome_text = "👋 Добро пожаловать в панель администратора!\n\n"
+    if is_main:
+        welcome_text += "👑 Вы главный администратор\n\n"
+    else:
+        welcome_text += "👤 Вы администратор\n\n"
+    
+    welcome_text += "📋 Доступные команды:\n"
+    welcome_text += "• /admin - показать это сообщение\n"
+    welcome_text += "• /admins - показать список администраторов\n"
     
     if is_main:
-        commands.extend([
-            "• /add_admin @username - добавить администратора",
-            "• /remove_admin @username - удалить администратора"
-        ])
+        welcome_text += "• /add_admin ID - добавить администратора\n"
+        welcome_text += "• /remove_admin ID - удалить администратора\n"
     
-    await message.answer("\n".join(commands))
+    # Создаем клавиатуру администратора
+    keyboard = get_admin_keyboard()
+    
+    # Отправляем сообщение с клавиатурой
+    await message.answer(
+        welcome_text,
+        reply_markup=keyboard
+    )
 
-@dp.message_handler(commands=['admins'])
-async def cmd_list_admins(message: types.Message):
+@dp.message_handler(lambda message: message.text == "👥 Список Администраторов")
+async def show_admins_list(message: types.Message):
     """Показывает список администраторов"""
-    if not db.is_admin(message.from_user.username):
+    if not db.is_admin(str(message.from_user.id)):
         await message.answer("У вас нет прав администратора.")
         return
 
@@ -387,52 +551,97 @@ async def cmd_list_admins(message: types.Message):
     admin_list = ["👥 Список администраторов:"]
     for admin in admins:
         prefix = "👑" if admin['is_main_admin'] else "👤"
-        admin_list.append(f"{prefix} {admin['username']}")
+        admin_list.append(f"{prefix} {admin['telegram_id']}")
+
+    await message.answer("\n".join(admin_list))
+
+@dp.message_handler(lambda message: message.text == "➕ Добавить Админа")
+async def add_admin_prompt(message: types.Message):
+    """Запрашивает ID нового администратора"""
+    if not db.is_main_admin(str(message.from_user.id)):
+        await message.answer("Только главный администратор может добавлять новых администраторов.")
+        return
+
+    await message.answer(
+        "Введите ID пользователя, которого хотите сделать администратором.\n"
+        "Пример: 123456789"
+    )
+
+@dp.message_handler(lambda message: message.text == "➖ Удалить Админа")
+async def remove_admin_prompt(message: types.Message):
+    """Запрашивает ID администратора для удаления"""
+    if not db.is_main_admin(str(message.from_user.id)):
+        await message.answer("Только главный администратор может удалять администраторов.")
+        return
+
+    await message.answer(
+        "Введите ID администратора, которого хотите удалить.\n"
+        "Пример: 123456789"
+    )
+
+@dp.message_handler(commands=['admins'])
+async def cmd_list_admins(message: types.Message):
+    """Показывает список администраторов"""
+    if not db.is_admin(str(message.from_user.id)):
+        await message.answer("У вас нет прав администратора.")
+        return
+
+    admins = db.get_active_admins()
+    if not admins:
+        await message.answer("Список администраторов пуст.")
+        return
+
+    admin_list = ["👥 Список администраторов:"]
+    for admin in admins:
+        prefix = "👑" if admin['is_main_admin'] else "👤"
+        admin_list.append(f"{prefix} {admin['telegram_id']}")
 
     await message.answer("\n".join(admin_list))
 
 @dp.message_handler(commands=['add_admin'])
 async def cmd_add_admin(message: types.Message):
     """Добавляет нового администратора"""
-    if not db.is_main_admin(message.from_user.username):
+    if not db.is_main_admin(str(message.from_user.id)):
         await message.answer("Только главный администратор может добавлять новых администраторов.")
         return
 
     args = message.get_args()
     if not args:
-        await message.answer("Укажите username администратора.\nПример: /add_admin @username")
+        await message.answer("Укажите ID администратора.\nПример: /add_admin 123456789")
         return
 
-    username = args.strip()
-    if not username.startswith('@'):
-        username = f"@{username}"
+    admin_id = args.strip()
+    if not admin_id.isdigit():
+        await message.answer("ID администратора должен быть числом.")
+        return
 
-    if db.add_admin(username, message.from_user.username):
-        await message.answer(f"✅ Администратор {username} успешно добавлен.")
+    if db.add_admin(admin_id, str(message.from_user.id)):
+        await message.answer(f"✅ Администратор {admin_id} успешно добавлен.")
     else:
-        await message.answer(f"❌ Не удалось добавить администратора {username}.")
+        await message.answer(f"❌ Не удалось добавить администратора {admin_id}.")
 
 @dp.message_handler(commands=['remove_admin'])
 async def cmd_remove_admin(message: types.Message):
     """Удаляет администратора"""
-    if not db.is_main_admin(message.from_user.username):
+    if not db.is_main_admin(str(message.from_user.id)):
         await message.answer("Только главный администратор может удалять администраторов.")
         return
 
     args = message.get_args()
     if not args:
-        await message.answer("Укажите username администратора.\nПример: /remove_admin @username")
+        await message.answer("Укажите ID администратора.\nПример: /remove_admin 123456789")
         return
 
-    username = args.strip()
-    if not username.startswith('@'):
-        username = f"@{username}"
+    admin_id = args.strip()
+    if not admin_id.isdigit():
+        await message.answer("ID администратора должен быть числом.")
+        return
 
-    if username == os.getenv('MAIN_ADMIN_USERNAME'):
+    if admin_id == os.getenv('MAIN_ADMIN_ID'):
         await message.answer("❌ Нельзя удалить главного администратора.")
         return
 
-    if db.remove_admin(username, message.from_user.username):
-        await message.answer(f"✅ Администратор {username} успешно удален.")
+    if db.remove_admin(admin_id, str(message.from_user.id)):
+        await message.answer(f"✅ Администратор {admin_id} успешно удален.")
     else:
-        await message.answer(f"❌ Не удалось удалить администратора {username}.") 
+        await message.answer(f"❌ Не удалось удалить администратора {admin_id}.") 

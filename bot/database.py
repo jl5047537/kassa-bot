@@ -241,5 +241,49 @@ class Database:
                 """)
                 return [dict(row) for row in cur.fetchall()]
 
+    def update_user_status(self, telegram_id: str, status: str) -> bool:
+        """Обновляет статус пользователя"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users 
+                        SET level = %s
+                        WHERE telegram_id = %s
+                    """, (1 if status == 'active' else 0, telegram_id))
+                    conn.commit()
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка обновления статуса пользователя {telegram_id}: {e}")
+            return False
+
+    def update_user_level(self, telegram_id: str, new_level: int) -> bool:
+        """Обновляет уровень пользователя"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users 
+                        SET level = %s
+                        WHERE telegram_id = %s
+                    """, (new_level, telegram_id))
+                    conn.commit()
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка обновления уровня пользователя {telegram_id}: {e}")
+            return False
+
+    def get_referrals_count(self, telegram_id: str) -> int:
+        """Возвращает количество рефералов пользователя"""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COUNT(*) 
+                    FROM users 
+                    WHERE referrer_id = %s
+                """, (telegram_id,))
+                result = cur.fetchone()
+                return result[0] if result else 0
+
 # Создаем экземпляр базы данных
 db = Database() 
