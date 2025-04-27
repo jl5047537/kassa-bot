@@ -32,6 +32,7 @@ def get_main_keyboard():
     keyboard.add(KeyboardButton("🔑 Стартовый ключ 🔑"))
     keyboard.add(KeyboardButton("👤 Мой профиль"))
     keyboard.add(KeyboardButton("📱 Контакты"))
+    keyboard.add(KeyboardButton("💎 Запустить Бот ТГ Кошелька"))
     return keyboard
 
 def get_registration_keyboard():
@@ -179,6 +180,7 @@ async def process_payment(message: types.Message):
 @dp.callback_query_handler(lambda c: c.data == 'saved_contact')
 async def process_saved_contact(callback_query: CallbackQuery):
     pay_keyboard = InlineKeyboardMarkup()
+    pay_keyboard.add(InlineKeyboardButton("💎 Запустить Бот ТГ Кошелька", url="https://t.me/wallet"))
     pay_keyboard.add(
         InlineKeyboardButton("✅ Я оплатил", callback_data="paid"),
         InlineKeyboardButton("🤔 Упс, проблема", callback_data="trouble")
@@ -187,7 +189,7 @@ async def process_saved_contact(callback_query: CallbackQuery):
         "💳 Открой свой кошелёк в Telegram.\n"
         "📤 Нажми кнопку 'Отправить', выбери сохранённый контакт из записной книжки.\n"
         "💸 Переведи 4 TON для активации участия.\n\n"
-        "📤 После оплаты нажми в боте кнопку 'Я оплатил'\n"
+        "📤 После оплаты нажми здесь кнопку 'Я оплатил'\n"
         "Бот пришлет подтверждение и активирует участие\n\n",
         reply_markup=pay_keyboard
     )
@@ -195,10 +197,91 @@ async def process_saved_contact(callback_query: CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == 'paid')
 async def process_paid(callback_query: CallbackQuery):
-    await callback_query.message.answer("Спасибо за оплату! Ваша заявка будет обработана.")
+    """Обработчик нажатия кнопки 'Я оплатил'"""
+    # Получаем информацию о пользователе
+    user_id = str(callback_query.from_user.id)
+    user = db.get_user(user_id)
+    
+    if not user:
+        await callback_query.message.answer("Ошибка: пользователь не найден")
+        await callback_query.answer()
+        return
+    
+    # Создаем клавиатуру для подтверждения/отклонения
+    confirm_keyboard = InlineKeyboardMarkup()
+    confirm_keyboard.add(
+        InlineKeyboardButton("✅ Подтвердить", callback_data="confirm_payment"),
+        InlineKeyboardButton("❌ Отклонить", callback_data="reject_payment")
+    )
+    
+    # Формируем сообщение для администратора
+    admin_message = (
+        f"🔔 Новый платеж!\n"
+        f"Пользователь ID: {user_id}\n"
+        f"Телефон: {user['phone_number']}\n"
+        f"Сумма: 4 TON\n\n"
+        f"Пожалуйста, проверьте свой кошелек и подтвердите или отклоните платеж"
+    )
+    
+    # Отправляем сообщение администратору
+    admin_username = "@DeeNastiya"
+    try:
+        await bot.send_message(
+            chat_id=admin_username,
+            text=admin_message,
+            reply_markup=confirm_keyboard
+        )
+        logger.info(f"Сообщение отправлено администратору {admin_username}")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения администратору: {e}")
+        await callback_query.message.answer(
+            "Произошла ошибка при отправке уведомления администратору. Пожалуйста, попробуйте позже."
+        )
+    
+    # Отправляем сообщение пользователю
+    await callback_query.message.answer(
+        "Ваш платеж отправлен на проверку. Пожалуйста, подождите подтверждения.",
+        reply_markup=confirm_keyboard
+    )
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'confirm_payment')
+async def confirm_payment(callback_query: CallbackQuery):
+    """Обработчик подтверждения платежа"""
+    # Здесь будет логика подтверждения платежа
+    await callback_query.message.answer("Платеж подтвержден!")
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == 'reject_payment')
+async def reject_payment(callback_query: CallbackQuery):
+    """Обработчик отклонения платежа"""
+    # Здесь будет логика отклонения платежа
+    await callback_query.message.answer("Платеж отклонен!")
     await callback_query.answer()
 
 @dp.callback_query_handler(lambda c: c.data == 'trouble')
 async def process_trouble(callback_query: CallbackQuery):
     await callback_query.message.answer("Если возникли трудности, напишите в поддержку: @support")
+    await callback_query.answer()
+
+@dp.message_handler(lambda message: message.text == "💎 Запустить Бот ТГ Кошелька")
+async def open_wallet(message: types.Message):
+    """Обработчик для открытия кошелька"""
+    # Создаем кнопку с URL для открытия бота кошелька
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton(
+        "💎 Запустить Бот ТГ Кошелька",
+        url="https://t.me/wallet"
+    ))
+    
+    # Отправляем сообщение с инструкцией
+    await message.answer(
+        "Для открытия кошелька нажмите на кнопку ниже:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query_handler(lambda c: c.data == "open_wallet")
+async def process_wallet_callback(callback_query: types.CallbackQuery):
+    """Обработчик нажатия на кнопку открытия кошелька"""
+    await callback_query.message.answer("Пожалуйста, используйте команду /wallet в любом чате для открытия кошелька.")
     await callback_query.answer() 
