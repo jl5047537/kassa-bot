@@ -28,25 +28,36 @@ def update_referral_circle_status(db: Session, circle_id: str, status: str) -> O
     return db_circle
 
 # Referral CRUD
+def get_referral(db: Session, referral_id: str) -> Optional[Referral]:
+    return db.query(Referral).filter(Referral.id == referral_id).first()
+
+def get_referrals(db: Session, skip: int = 0, limit: int = 100) -> List[Referral]:
+    return db.query(Referral).offset(skip).limit(limit).all()
+
 def create_referral(db: Session, referral: ReferralCreate) -> Referral:
-    db_referral = Referral(**referral.model_dump())
+    db_referral = Referral(
+        circle_id=referral.circle_id,
+        referral_id=referral.referral_id
+    )
     db.add(db_referral)
+    db.commit()
+    db.refresh(db_referral)
+    return db_referral
+
+def update_referral(db: Session, referral_id: str, referral_update: ReferralUpdate) -> Optional[Referral]:
+    db_referral = db.query(Referral).filter(Referral.id == referral_id).first()
+    if not db_referral:
+        return None
+    
+    for field, value in referral_update.dict(exclude_unset=True).items():
+        setattr(db_referral, field, value)
+    
     db.commit()
     db.refresh(db_referral)
     return db_referral
 
 def get_referrals_by_circle(db: Session, circle_id: str) -> List[Referral]:
     return db.query(Referral).filter(Referral.circle_id == circle_id).all()
-
-def update_referral_wallet_status(db: Session, referral_id: str, wallet_connected: bool) -> Optional[Referral]:
-    db_referral = db.query(Referral).filter(Referral.id == referral_id).first()
-    if not db_referral:
-        return None
-    
-    db_referral.wallet_connected = wallet_connected
-    db.commit()
-    db.refresh(db_referral)
-    return db_referral
 
 # ReferralHistory CRUD
 def create_referral_history(db: Session, history: ReferralHistoryCreate) -> ReferralHistory:

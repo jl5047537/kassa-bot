@@ -13,32 +13,23 @@ def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
     return db.query(User).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: UserCreate) -> User:
-    db_user = User(**user.model_dump())
+    db_user = User(
+        telegram_id=user.telegram_id,
+        level=user.level,
+        phone_number=user.phone_number
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-def update_user(db: Session, user_id: str, user: UserUpdate) -> Optional[User]:
-    db_user = get_user(db, user_id)
+def update_user(db: Session, user_id: str, user_update: UserUpdate) -> Optional[User]:
+    db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         return None
     
-    update_data = user.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
+    for field, value in user_update.dict(exclude_unset=True).items():
         setattr(db_user, field, value)
-    
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-def update_wallet(db: Session, user_id: str, wallet_address: str) -> Optional[User]:
-    db_user = get_user(db, user_id)
-    if not db_user:
-        return None
-    
-    db_user.ton_wallet_address = wallet_address
-    db_user.wallet_status = True
     
     db.commit()
     db.refresh(db_user)
