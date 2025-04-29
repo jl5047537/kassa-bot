@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Модуль для работы с базой данных PostgreSQL.
-Содержит класс Database для управления таблицами users и admins.
-"""
-
 import psycopg2
 from psycopg2.extras import DictCursor
 import logging
@@ -20,15 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class Database:
-    """
-    Класс для работы с базой данных PostgreSQL.
-    Обеспечивает создание и управление таблицами users и admins.
-    """
     def __init__(self):
-        """
-        Инициализация подключения к базе данных.
-        Загружает настройки из config.env и создает необходимые таблицы.
-        """
         # Загружаем переменные окружения
         with open('config.env', 'r', encoding='utf-8') as f:
             for line in f:
@@ -36,7 +23,6 @@ class Database:
                     key, value = line.strip().split('=', 1)
                     os.environ[key] = value
 
-        # Параметры подключения к базе данных
         self.conn_params = {
             'host': os.getenv('POSTGRES_HOST', 'localhost'),
             'port': int(os.getenv('POSTGRES_PORT', 5432)),
@@ -48,19 +34,9 @@ class Database:
         self.recreate_tables()
 
     def get_connection(self):
-        """
-        Создает и возвращает новое подключение к базе данных.
-        
-        Returns:
-            psycopg2.connection: Объект подключения к базе данных
-        """
         return psycopg2.connect(**self.conn_params)
 
     def recreate_tables(self):
-        """
-        Пересоздает таблицы users и admins в базе данных.
-        Удаляет существующие таблицы и создает их заново с актуальной структурой.
-        """
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 # Удаляем существующие таблицы
@@ -69,11 +45,11 @@ class Database:
                     DROP TABLE IF EXISTS admins;
                 """)
                 
-                # Создаем таблицу users с полной структурой
+                # Создаем таблицу users
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         id SERIAL PRIMARY KEY,
-                        telegram_id TEXT UNIQUE NOT NULL,
+                        telegram_id TEXT UNIQUE,
                         first_name TEXT,
                         last_name TEXT,
                         username TEXT,
@@ -81,17 +57,17 @@ class Database:
                         user_link TEXT,
                         phone_number TEXT,
                         level INTEGER DEFAULT 0,
-                        referral_id TEXT,
+                        referrer_id TEXT,
                         created_at INTEGER,
                         updated_at INTEGER
                     )
                 """)
                 
-                # Создаем таблицу admins с полной структурой
+                # Создаем таблицу admins
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS admins (
                         id SERIAL PRIMARY KEY,
-                        telegram_id TEXT UNIQUE NOT NULL,
+                        telegram_id TEXT UNIQUE,
                         first_name TEXT,
                         last_name TEXT,
                         username TEXT,
@@ -105,29 +81,128 @@ class Database:
                     )
                 """)
                 
-                conn.commit()
+                # Добавляем предустановленных пользователей
+                preset_users = [
+                    {
+                        "telegram_id": "7806482506",
+                        "first_name": "LEVEL 1",
+                        "last_name": "Alex",
+                        "username": "Alex_Level_1",
+                        "avatar": None,
+                        "user_link": "https://t.me/Alex_Level_1",
+                        "phone_number": "9683327001",
+                        "level": 1,
+                        "referral_id": None,
+                        "created_at": int(time.time()),
+                        "updated_at": int(time.time())
+                    },
+                    {
+                        "telegram_id": "7355173647",
+                        "first_name": "LEVEL 2",
+                        "last_name": "Nastyia",
+                        "username": "Nastiya_Level_2",
+                        "avatar": None,
+                        "user_link": "https://t.me/Nastiya_Level_2",
+                        "phone_number": "9684286626",
+                        "level": 2,
+                        "referral_id": None,
+                        "created_at": int(time.time()),
+                        "updated_at": int(time.time())
+                    },
+                    {
+                        "telegram_id": "7651819044",
+                        "first_name": "LEVEL 3",
+                        "last_name": "Viktor",
+                        "username": "travelercinema",
+                        "avatar": None,
+                        "user_link": "https://t.me/travelercinema",
+                        "phone_number": "9253498238",
+                        "level": 3,
+                        "referral_id": None,
+                        "created_at": int(time.time()),
+                        "updated_at": int(time.time())
+                    },
+                    {
+                        "telegram_id": "7694850355",
+                        "first_name": "LEVEL 4",
+                        "last_name": "Mark",
+                        "username": "Mark_Level_4",
+                        "avatar": None,
+                        "user_link": "https://t.me/Mark_Level_4",
+                        "phone_number": "9363030567",
+                        "level": 4,
+                        "referral_id": None,
+                        "created_at": int(time.time()),
+                        "updated_at": int(time.time())
+                    }
+                ]
+                
+                for user in preset_users:
+                    cur.execute("""
+                        INSERT INTO users (
+                            telegram_id, first_name, last_name, username,
+                            avatar, user_link, phone_number, level,
+                            referrer_id, created_at, updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        user["telegram_id"],
+                        user["first_name"],
+                        user["last_name"],
+                        user["username"],
+                        user["avatar"],
+                        user["user_link"],
+                        user["phone_number"],
+                        user["level"],
+                        user["referral_id"],
+                        user["created_at"],
+                        user["updated_at"]
+                    ))
                 
                 # Добавляем главного администратора
                 main_admin_id = os.getenv('MAIN_ADMIN_ID')
                 if main_admin_id:
-                    try:
-                        # Удаляем существующую запись главного администратора
-                        cur.execute("DELETE FROM admins WHERE telegram_id = %s", (main_admin_id,))
-                        
-                        # Добавляем нового главного администратора
-                        cur.execute("""
-                            INSERT INTO admins (
-                                telegram_id, is_main_admin, is_active, created_at, updated_at
-                            ) VALUES (%s, TRUE, TRUE, %s, %s)
-                        """, (main_admin_id, int(time.time()), int(time.time())))
-                        
-                        conn.commit()
-                        logger.info(f"Main admin with ID {main_admin_id} added successfully")
-                    except Exception as e:
-                        logger.error(f"Error adding main admin: {e}")
-                        conn.rollback()
+                    logger.info(f"Adding main admin with ID: {main_admin_id}")
+                    
+                    # Сначала удаляем старую запись если она есть
+                    cur.execute("""
+                        DELETE FROM admins WHERE telegram_id = %s
+                    """, (main_admin_id,))
+                    
+                    # Добавляем новую запись
+                    cur.execute("""
+                        INSERT INTO admins (
+                            telegram_id, first_name, last_name, username, 
+                            avatar, user_link, phone_number, 
+                            is_main_admin, is_active, created_at, updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        main_admin_id,
+                        "Jan",  # first_name
+                        "Levy",  # last_name
+                        "JanLevy",  # username
+                        None,  # avatar
+                        "https://t.me/JanLevy",  # user_link
+                        "9165047537",  # phone_number
+                        True,  # is_main_admin
+                        True,  # is_active
+                        int(time.time()),  # created_at
+                        int(time.time())   # updated_at
+                    ))
+                    
+                    result = cur.fetchone()
+                    logger.info(f"Main admin record after insert: {result}")
+                    conn.commit()
+                    
+                    if result:
+                        logger.info("Main admin added successfully")
+                    else:
+                        logger.error("Failed to add main admin")
                 
-                logger.info("Tables recreated and initialized")
+                conn.commit()
+        logger.info("Таблицы пересозданы и инициализированы")
 
     def get_user(self, telegram_id: str) -> Optional[dict]:
         with self.get_connection() as conn:
@@ -141,26 +216,10 @@ class Database:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Если это не предустановленный пользователь и не указан наставник,
-                    # делаем наставником пользователя Уровня 4
-                    if not referrer_id and telegram_id not in ["7806482506", "7355173647", "7651819044", "7694850355"]:
-                        referrer_id = "7694850355"  # ID пользователя Уровня 4
-                        logger.info(f"Новый пользователь {telegram_id} автоматически назначен рефералом Уровня 4")
-                    
                     cur.execute("""
-                        INSERT INTO users (
-                            telegram_id, phone_number, level, referral_id, 
-                            created_at, updated_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (
-                        telegram_id, 
-                        phone_number, 
-                        level, 
-                        referrer_id, 
-                        int(time.time()), 
-                        int(time.time())
-                    ))
+                        INSERT INTO users (telegram_id, referrer_id, phone_number, level, created_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (telegram_id, referrer_id, phone_number, level, int(time.time())))
                     conn.commit()
                     return True
         except Exception as e:
@@ -352,7 +411,7 @@ class Database:
                 cur.execute("""
                     SELECT COUNT(*) 
                     FROM users 
-                    WHERE referral_id = %s
+                    WHERE referrer_id = %s
                 """, (telegram_id,))
                 result = cur.fetchone()
                 return result[0] if result else 0
@@ -364,7 +423,7 @@ class Database:
                 cur.execute("""
                     SELECT 
                         telegram_id, first_name, last_name, username,
-                        level, phone_number, referral_id, created_at
+                        level, phone_number, referrer_id, created_at
                     FROM users 
                     ORDER BY level DESC, created_at DESC
                 """)

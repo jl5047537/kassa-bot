@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Основной модуль Telegram бота.
-Содержит обработчики команд и состояний для взаимодействия с пользователями.
-"""
-
 import logging
 import os
 import hashlib
@@ -29,23 +23,10 @@ dp = Dispatcher(bot, storage=storage)
 
 # Состояния FSM
 class UserStates(StatesGroup):
-    """
-    Класс состояний пользователя для FSM (Finite State Machine).
-    Определяет возможные состояния пользователя в процессе взаимодействия с ботом.
-    """
-    waiting_for_phone = State()  # Состояние ожидания номера телефона
+    waiting_for_phone = State()
 
 # Клавиатуры
 def get_main_keyboard(user_id: str = None):
-    """
-    Создает основную клавиатуру для пользователя.
-    
-    Args:
-        user_id (str, optional): ID пользователя для определения его уровня доступа.
-        
-    Returns:
-        ReplyKeyboardMarkup: Клавиатура с соответствующими кнопками
-    """
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     
     if user_id:
@@ -67,172 +48,196 @@ def get_main_keyboard(user_id: str = None):
     return keyboard
 
 def get_registration_keyboard():
-    """
-    Создает клавиатуру для процесса регистрации.
-    
-    Returns:
-        ReplyKeyboardMarkup: Клавиатура с кнопкой для отправки контакта
-    """
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("📱 Отправить Контакт", request_contact=True))
+    keyboard.add(KeyboardButton("🔑 Зарегистрироваться", request_contact=True))
     return keyboard
 
 def get_referral_id(phone_number):
-    """
-    Генерирует ID реферала на основе номера телефона.
-    
-    Args:
-        phone_number (str): Номер телефона пользователя
-        
-    Returns:
-        str: Сгенерированный ID реферала
-    """
-    return hashlib.md5(phone_number.encode()).hexdigest()[:10]
+    if not phone_number:
+        return "нет данных"
+    phone_bytes = phone_number.encode('utf-8')
+    hash_object = hashlib.md5(phone_bytes)
+    hash_hex = hash_object.hexdigest()
+    return hash_hex[:8]
 
 def get_admin_keyboard():
-    """
-    Создает клавиатуру для администраторов.
-    
-    Returns:
-        ReplyKeyboardMarkup: Клавиатура с административными функциями
-    """
+    """Возвращает клавиатуру для администратора"""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton("👥 Список Администраторов"))
-    keyboard.add(KeyboardButton("➕ Добавить Админа"), KeyboardButton("➖ Удалить Админа"))
+    keyboard.add(KeyboardButton("➕ Добавить Админа"))
+    keyboard.add(KeyboardButton("➖ Удалить Админа"))
     return keyboard
 
 # Обработчики команд
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message, state: FSMContext):
-    """
-    Обработчик команды /start.
-    Инициализирует взаимодействие с пользователем и отправляет приветственное сообщение.
-    
-    Args:
-        message (types.Message): Входящее сообщение
-        state (FSMContext): Контекст состояния FSM
-    """
     # Получаем данные пользователя
     user_id = str(message.from_user.id)
     username = message.from_user.username
-    first_name = message.from_user.first_name
-    last_name = message.from_user.last_name
     
-    # Проверяем, существует ли пользователь
-    user = db.get_user(user_id)
+    logger.info(f"User started bot: id={user_id}, username={username}")
     
-    if not user:
-        # Если пользователь новый, отправляем приветственное сообщение
+    # Проверяем, является ли пользователь администратором
+    is_admin = db.is_admin(str(message.from_user.id))
+    is_main_admin = db.is_main_admin(str(message.from_user.id))
+    
+    logger.info(f"Admin check results: is_admin={is_admin}, is_main_admin={is_main_admin}")
+    
+    if is_admin or is_main_admin:
+        # Создаем клавиатуру администратора
+        keyboard = get_admin_keyboard()
+        
+        # Отправляем приветственное сообщение с клавиатурой
         await message.answer(
-            "👋 Добро пожаловать в Kassa Bot!\n\n"
-            "Для начала работы необходимо зарегистрироваться.\n"
-            "Пожалуйста, отправьте свой номер телефона.",
-            reply_markup=get_registration_keyboard()
+            "🌟 *Добро пожаловать в центр управления успехом!* 🌟\n\n"
+            "*Наш Божественный Админ*, ваша энергия и лидерство — настоящий двигатель этого проекта! 🚀\n"
+            "Вы не просто управляете процессами — вы вдохновляете!\n\n"
+            "*Сегодня снова ваш день творить великие перемены!* 🔥",
+            parse_mode="Markdown",
+            reply_markup=keyboard
         )
-        await UserStates.waiting_for_phone.set()
+        return
+
+    # Если не администратор - показываем обычное меню
+    args = message.get_args()
+    if args:  # Если есть реферальный ID
+        await state.set_state(UserStates.waiting_for_phone.state)
+        await state.update_data(referrer_id=args)
+        logger.info(f"Saved referrer_id: {args} for user {user_id}")
     else:
-        # Если пользователь уже зарегистрирован
-        await message.answer(
-            f"👋 С возвращением, {first_name}!\n\n"
-            "Выберите действие:",
-            reply_markup=get_main_keyboard(user_id)
+        await state.set_state(UserStates.waiting_for_phone.state)
+        logger.info(f"No referrer_id for user {user_id}")
+
+    await message.answer(
+        "🚀 *Добро пожаловать!*\n"
+        "Твой путь к финансовой свободе начинается здесь!\n"
+        "Пройди короткую регистрацию в нашей *Кассе Взаимопомощи* и начни строить своё уверенное будущее уже сегодня. 🔥\n"
+        "Готов? Жми кнопку ниже! 👇",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(
+            KeyboardButton("🔑 Зарегистрироваться 🔑", request_contact=True)
         )
+    )
 
 @dp.callback_query_handler(lambda c: c.data == 'register', state='*')
 async def process_register_callback(callback_query: CallbackQuery):
-    """
-    Обработчик callback-запроса для регистрации.
-    
-    Args:
-        callback_query (CallbackQuery): Входящий callback-запрос
-    """
-    await callback_query.answer()
+    reg_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    reg_keyboard.add(KeyboardButton("📱 Отправить номер телефона", request_contact=True))
     await callback_query.message.answer(
-        "Для регистрации отправьте свой номер телефона:",
-        reply_markup=get_registration_keyboard()
+        "Пожалуйста, нажмите кнопку ниже, чтобы отправить свой номер телефона для регистрации:",
+        reply_markup=reg_keyboard
     )
-    await UserStates.waiting_for_phone.set()
+    await callback_query.answer("Кнопка нажата!")
 
 @dp.message_handler(lambda message: message.text == "📊 Профиль")
 async def show_profile(message: types.Message):
-    """
-    Обработчик для отображения профиля пользователя.
-    
-    Args:
-        message (types.Message): Входящее сообщение
-    """
-    user_id = str(message.from_user.id)
-    user = db.get_user(user_id)
-    
-    if user:
-        # Формируем информацию о профиле
-        profile_text = (
-            f"👤 Ваш профиль:\n\n"
-            f"ID: {user['telegram_id']}\n"
-            f"Уровень: {user['level']}\n"
-            f"Телефон: {user['phone_number']}\n"
-        )
-        
-        # Добавляем информацию о наставнике, если есть
-        if user['referral_id']:
-            referrer = db.get_user(user['referral_id'])
-            if referrer:
-                profile_text += f"Наставник: {referrer['first_name']} (Уровень {referrer['level']})\n"
-        
-        # Добавляем информацию о рефералах
-        referrals_count = db.get_referrals_count(user_id)
-        profile_text += f"Рефералов: {referrals_count}\n"
-        
-        await message.answer(profile_text)
-    else:
+    user = db.get_user(str(message.from_user.id))
+    if not user:
         await message.answer(
-            "Вы еще не зарегистрированы. Пожалуйста, нажмите /start для начала регистрации."
+            "Для начала работы зарегистрируйтесь:",
+            reply_markup=get_registration_keyboard()
         )
+        await UserStates.waiting_for_phone.set()
+        return
+
+    ref_id = get_referral_id(user['phone_number'])
+    referrals_count = db.get_referrals_count(str(message.from_user.id))
+    current_level = user.get('level', 0)
+
+    # Формируем текст с уровнями и прогрессом
+    levels_text = ""
+    level_requirements = {
+        4: 4,    # Начинающий
+        3: 16,   # Продвинутый
+        2: 64,   # Профессионал
+        1: 256   # Эксперт
+    }
+    
+    for level in range(4, 0, -1):
+        required_referrals = level_requirements[level]
+        is_current = level == current_level
+        is_completed = level < current_level
+        is_locked = level > current_level
+        
+        level_emoji = "✅" if is_completed else "🔒" if is_locked else "🏆" if is_current else "🏃"
+        level_status = " (Текущий)" if is_current else " (Заблокирован)" if is_locked else " (Завершен)" if is_completed else ""
+        
+        progress = f"{referrals_count}/{required_referrals}" if not is_completed else "✅"
+        
+        levels_text += f"{level_emoji} {level} уровень {level_status} - {progress}\n"
+
+    profile_text = (
+        f"👤 *Ваш профиль*\n\n"
+        f"📱 Телефон: {user['phone_number']}\n"
+        f"🆔 Ваш referral ID: *{ref_id}*\n"
+        f"👥 Приглашено друзей: *{referrals_count}*\n\n"
+        f"*Уровни:*\n{levels_text}"
+    )
+
+    await message.answer(
+        profile_text,
+        parse_mode="Markdown"
+    )
 
 @dp.message_handler(content_types=['contact'], state=UserStates.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    """
-    Обработчик для обработки номера телефона при регистрации.
-    
-    Args:
-        message (types.Message): Входящее сообщение с контактом
-        state (FSMContext): Контекст состояния FSM
-    """
-    user_id = str(message.from_user.id)
     phone_number = message.contact.phone_number
+    user_id = str(message.from_user.id)
+    
+    # Получаем данные из состояния
+    state_data = await state.get_data()
+    referrer_id = state_data.get('referrer_id')
     
     # Проверяем, существует ли пользователь
-    user = db.get_user(user_id)
-    
-    if not user:
-        # Создаем нового пользователя
-        referral_id = get_referral_id(phone_number)
-        if db.create_user(user_id, referral_id, phone_number):
-            await message.answer(
-                "✅ Регистрация успешно завершена!\n\n"
-                "Теперь вы можете:\n"
-                "1. Приглашать друзей\n"
-                "2. Отслеживать свой прогресс\n"
-                "3. Получать награды",
-                reply_markup=get_main_keyboard(user_id)
-            )
+    existing_user = db.get_user(user_id)
+    if existing_user:
+        # Формируем сообщение о текущем статусе
+        referrals_count = db.get_referrals_count(user_id)
+        current_level = existing_user.get('level', 0)
+        
+        status_text = (
+            f"Вы уже зарегистрированы в системе!\n\n"
+            f"Ваш текущий статус:\n"
+            f"• Уровень: {current_level}\n"
+            f"• Рефералов: {referrals_count}\n"
+            f"• Статус оплаты: {'✅ Оплачено' if current_level > 0 else '❌ Не оплачено'}\n\n"
+        )
+        
+        if current_level == 0:
+            status_text += "Для активации нажмите кнопку '🔑 Стартовый Ключ'"
         else:
-            await message.answer(
-                "❌ Произошла ошибка при регистрации. Пожалуйста, попробуйте позже."
-            )
+            status_text += "Вы можете приглашать друзей и получать бонусы!"
+        
+        await state.finish()
+        await message.answer(
+            status_text,
+            reply_markup=get_main_keyboard(user_id)
+        )
+        return
+    
+    # Если пользователь не существует, создаем новую запись
+    success = db.create_user(
+        telegram_id=user_id,
+        referrer_id=referrer_id,
+        phone_number=phone_number,
+        level=0
+    )
+    
+    if success:
+        await state.finish()
+        await message.answer(
+            "*🎉 Ура, ты с нами!*\n"
+            "Поздравляем с регистрацией в *Кассе Взаимопомощи*! 🎊\n\n"
+            "Остался последний лёгкий шаг — нажми на *🔑 Стартовый ключ 🔑* и активируй своё участие.\n"
+            "Это разовый символический взнос в 4 TON, который не только откроет тебе путь к стабильности, финансовой свободе и уверенности в завтрашнем дне, 💸 но и поможет всей системе работать честно, надёжно и исправно для каждого участника. 🔗\n\n"
+            "*Готов начать? Жми на кнопку и стартуем вместе! 🚀*",
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard(user_id)
+        )
     else:
-        # Обновляем номер телефона существующего пользователя
-        if db.update_user(user_id, phone_number=phone_number):
-            await message.answer(
-                "✅ Номер телефона успешно обновлен!",
-                reply_markup=get_main_keyboard(user_id)
-            )
-        else:
-            await message.answer(
-                "❌ Произошла ошибка при обновлении номера телефона."
-            )
-    
-    await state.finish()
+        await message.answer(
+            "Произошла ошибка при сохранении данных. Пожалуйста, попробуйте позже."
+        )
 
 @dp.message_handler(lambda message: message.text == "❓ Помощь")
 async def show_contacts(message: types.Message):
