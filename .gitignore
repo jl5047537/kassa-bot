@@ -23,7 +23,6 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
-env/
 
 # IDE
 .idea/
@@ -33,20 +32,7 @@ env/
 
 # Logs
 *.log
-logs/
 
-# Database
-*.db
-*.sqlite3
-
-# Environment variables
-.env
-.env.local
-
-# Test coverage
-.coverage
-htmlcov/
-
-# Distribution
-dist/
-build/ 
+# Local development
+.DS_Store
+Thumbs.db 

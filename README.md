@@ -1,125 +1,174 @@
-# Kassa Bot
+# KASSA_BOT
 
-Веб-приложение для управления кассой и реферальной системой.
+Telegram бот для управления кассой и реферальной системой.
+
+## Содержание
+- [Установка](#установка)
+- [Настройка](#настройка)
+- [Запуск](#запуск)
+- [Структура проекта](#структура-проекта)
+- [Система логирования](#система-логирования)
+- [Разработка](#разработка)
+- [Тестирование](#тестирование)
 
 ## Установка
 
-1. Создайте виртуальное окружение:
+1. Клонируйте репозиторий:
+```bash
+git clone https://github.com/your-username/KASSA_BOT.git
+cd KASSA_BOT
+```
+
+2. Создайте виртуальное окружение:
 ```bash
 python -m venv venv
 source venv/bin/activate  # для Linux/Mac
 venv\Scripts\activate     # для Windows
 ```
 
-2. Установите зависимости:
+3. Установите зависимости:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Создайте файл `.env` на основе `.env.example`
+## Настройка
 
-4. Примените миграции базы данных:
-```bash
-alembic upgrade head
+1. Создайте файл `config.env` на основе примера:
+```env
+# Database settings
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=kassa_bot
+
+# Bot settings
+TELEGRAM_BOT_TOKEN=your_bot_token
+USER_CONFIG_FILE=user_config.json
+
+# JWT settings
+SECRET_KEY=your-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Application settings
+PROJECT_NAME=Kassa Bot
+VERSION=1.0.0
+API_V1_STR=/api/v1
+
+# Logging settings
+LOG_LEVEL=DEBUG
+LOG_FILE=kassa_bot.log
+
+# Admin settings
+MAIN_ADMIN_ID=your_admin_id
+ADMIN_NOTIFICATION_ENABLED=true
 ```
 
-## Установка зависимостей
-
-### Production
+2. Настройте базу данных:
 ```bash
-pip install -r requirements.txt
-```
-
-### Development
-```bash
-pip install -r requirements-dev.txt
+python create_db.py
 ```
 
 ## Запуск
 
-1. Запуск сервера разработки:
 ```bash
-uvicorn app.main:app --reload
-```
-
-2. Запуск бота:
-```bash
-python bot/main.py
+python run.py
 ```
 
 ## Структура проекта
 
 ```
-kassa_bot/
-├── alembic/              # Миграции базы данных
-├── app/                  # Основное приложение
-│   ├── api/             # API эндпоинты
-│   ├── core/            # Основные настройки
-│   ├── db/              # Настройки базы данных
-│   ├── models/          # SQLAlchemy модели
-│   ├── schemas/         # Pydantic схемы
-│   └── templates/       # Jinja2 шаблоны
-├── bot/                 # Telegram бот
-├── static/              # Статические файлы
-├── tests/               # Тесты
-├── .env                 # Переменные окружения
-├── alembic.ini         # Конфигурация Alembic
-└── main.py             # Точка входа
+KASSA_BOT/
+├── bot/                    # Основной код бота
+│   ├── core/              # Основные модули
+│   │   ├── config.py      # Конфигурация
+│   │   ├── logger.py      # Система логирования
+│   │   └── db_logger.py   # Логирование в БД
+│   ├── database/          # Работа с БД
+│   ├── handlers/          # Обработчики команд
+│   └── keyboards/         # Клавиатуры
+├── docs/                  # Документация
+├── logs/                  # Логи
+├── tests/                 # Тесты
+└── backups/              # Резервные копии
 ```
 
-- `requirements.txt` - основные зависимости для production
-- `requirements-dev.txt` - дополнительные зависимости для разработки
-- `bot/` - код Telegram бота
-- `app/` - FastAPI приложение
-- `alembic/` - миграции базы данных
+## Система логирования
 
-## Технологии
+Проект использует многоуровневую систему логирования:
 
-- FastAPI - веб-фреймворк
-- SQLAlchemy - ORM
-- Alembic - миграции базы данных
-- python-telegram-bot - Telegram бот
-- Jinja2 - шаблонизатор
-- PostgreSQL - база данных 
+### 1. Уровни логирования
+- DEBUG: Детальная информация для отладки
+- INFO: Общая информация о работе
+- WARNING: Предупреждения
+- ERROR: Ошибки
+- CRITICAL: Критические ошибки
 
-## Запуск
+### 2. Настройка логирования
+Логирование настраивается через переменные окружения:
+```env
+LOG_LEVEL=DEBUG          # Уровень логирования
+LOG_FILE=kassa_bot.log   # Имя файла логов
+```
 
-1. Установите зависимости:
-   ```bash
-   # Для production
-   pip install -r requirements.txt
-   
-   # Для разработки
-   pip install -r requirements-dev.txt
-   ```
+### 3. Форматы логов
+- JSON формат для файлов
+- Текстовый формат для консоли
+- Структурированное хранение в БД
 
-2. Настройте переменные окружения (скопируйте .env.example в .env)
+### 4. Ротация логов
+- Максимальный размер файла: 10MB
+- Хранится 5 бэкапов
+- Автоматическое создание новых файлов
 
-3. Запустите бота:
-   ```bash
-   python bot.py
-   ```
+### 5. Хранение в базе данных
+Логи уровня INFO и выше сохраняются в БД с дополнительной информацией:
+- Временная метка
+- Уровень логирования
+- Имя логгера
+- Сообщение
+- Модуль и функция
+- Дополнительные данные
 
-4. Запустите FastAPI приложение:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+### 6. Мониторинг
+- Отслеживание ошибок
+- Анализ производительности
+- Статистика использования
+
+## Разработка
+
+1. Создайте ветку для новой функции:
+```bash
+git checkout -b feature/your-feature
+```
+
+2. Внесите изменения и закоммитьте:
+```bash
+git add .
+git commit -m "Описание изменений"
+```
+
+3. Отправьте изменения:
+```bash
+git push origin feature/your-feature
+```
 
 ## Тестирование
 
 ```bash
-pytest
+python -m pytest tests/
 ```
 
-## Линтинг
+## Функциональность
 
-```bash
-# Форматирование кода
-black .
+- Регистрация пользователей
+- Реферальная система
+- Уровни пользователей
+- Административная панель
+- Управление пользователями
+- Статистика и аналитика
 
-# Сортировка импортов
-isort .
+## Лицензия
 
-# Проверка типов
-mypy .
-``` 
+MIT 
