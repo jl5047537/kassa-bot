@@ -11,10 +11,7 @@ from typing import Optional
 
 from ..core.config import settings
 from ..keyboards.base import get_main_keyboard, get_registration_keyboard, get_admin_keyboard
-from ..utils.validators import validate_field, validate_phone
-from ..core.database import db
-from ..database.sql_models import User
-from ..states.admin import AdminStates
+from ..utils.validators import validate_field
 
 logger = logging.getLogger(__name__)
 
@@ -80,107 +77,34 @@ async def handle_contact(message: types.Message, state: FSMContext) -> None:
     
     logger.info(f"Received contact from user {user_id}: {contact.phone_number}")
     
-    try:
-        # Сначала проверяем, является ли пользователь главным администратором
-        if db.is_main_admin(int(user_id)):
-            # Для главного администратора показываем панель администратора
-            keyboard = get_admin_keyboard()
-            await message.answer(
-                "🌟 *Добро пожаловать в центр управления успехом!* 🌟\n\n"
-                "*Наш Божественный Админ*, ваша энергия и лидерство — настоящий двигатель этого проекта! 🚀\n"
-                "Выберите действие:",
-                parse_mode="Markdown",
-                reply_markup=keyboard
-            )
-            await AdminStates.admin_panel.set()
-            return
-
-        # Проверяем номер телефона
-        is_valid, error_message, preset_data = validate_phone(contact.phone_number)
-        if not is_valid:
-            await message.answer(
-                f"❌ {error_message}\n"
-                "Пожалуйста, проверьте номер и попробуйте снова.",
-                reply_markup=get_registration_keyboard()
-            )
-            return
-
-        # Создаем пользователя
-        if preset_data:
-            # Если нашли предустановленного пользователя
-            user = User(
-                telegram_id=user_id,
-                username=message.from_user.username,
-                first_name=message.from_user.first_name,
-                last_name=message.from_user.last_name,
-                phone_number=contact.phone_number,
-                level=preset_data["level"],
-                mentor_id=preset_data["mentor_id"],
-                is_active=preset_data["is_active"]
-            )
-            logger.info(f"Найден предустановленный пользователь уровня {preset_data['level']}")
-        else:
-            # Если не нашли - создаем обычного пользователя
-            mentor = db.get_preset_user_by_level(4)
-            if not mentor:
-                logger.error("Не найден наставник уровня 4")
-                await message.answer(
-                    "Произошла ошибка при регистрации. Пожалуйста, обратитесь к администратору.",
-                    reply_markup=get_registration_keyboard()
-                )
-                return
-
-            user = User(
-                telegram_id=user_id,
-                username=message.from_user.username,
-                first_name=message.from_user.first_name,
-                last_name=message.from_user.last_name,
-                phone_number=contact.phone_number,
-                level=0,  # Новый пользователь начинается с уровня 0
-                mentor_id=mentor.id  # Назначаем наставника
-            )
-            logger.info("Создан новый обычный пользователь")
-
-        db.add_user(user)
-        
-        # Формируем сообщение об успешной регистрации
-        if preset_data:
-            success_message = (
-                "✅ *Регистрация успешно завершена!*\n\n"
-                f"Вы зарегистрированы как пользователь уровня {preset_data['level']}.\n"
-                "Теперь вы можете:\n"
-                "• Приглашать друзей\n"
-                "• Просматривать свой профиль\n"
-                "• Получать помощь\n\n"
-                "Выберите действие:"
-            )
-        else:
-            success_message = (
-                "✅ *Регистрация успешно завершена!*\n\n"
-                "Вы зарегистрированы как новый пользователь.\n"
-                "Теперь вы можете:\n"
-                "• Приглашать друзей\n"
-                "• Просматривать свой профиль\n"
-                "• Получать помощь\n\n"
-                "Выберите действие:"
-            )
-        
-        # Показываем основное меню
-        keyboard = get_main_keyboard(user_id)
+    # Проверяем, является ли пользователь главным администратором
+    if int(user_id) == settings.MAIN_ADMIN_ID:
+        # Для главного администратора показываем панель администратора
+        keyboard = get_admin_keyboard()
         await message.answer(
-            success_message,
+            "🌟 *Добро пожаловать в центр управления успехом!* 🌟\n\n"
+            "*Наш Божественный Админ*, ваша энергия и лидерство — настоящий двигатель этого проекта! 🚀\n"
+            "Вы не просто управляете процессами — вы вдохновляете!\n\n"
+            "*Сегодня снова ваш день творить великие перемены!* 🔥",
             parse_mode="Markdown",
             reply_markup=keyboard
         )
-        
-        # Сбрасываем состояние
-        await state.finish()
-    except Exception as e:
-        logger.error(f"Ошибка при регистрации пользователя: {str(e)}")
+    else:
+        # Для обычных пользователей показываем основное меню
+        keyboard = get_main_keyboard(user_id)
         await message.answer(
-            "Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.",
-            reply_markup=get_registration_keyboard()
+            "✅ Регистрация успешно завершена!\n\n"
+            "Теперь вы можете:\n"
+            "• Приглашать друзей\n"
+            "• Просматривать свой профиль\n"
+            "• Получать помощь\n\n"
+            "Выберите действие:",
+            parse_mode="Markdown",
+            reply_markup=keyboard
         )
+    
+    # Сбрасываем состояние
+    await state.finish()
 
 async def show_profile(message: types.Message) -> None:
     """
@@ -302,7 +226,7 @@ def register_user_handlers(dp: Dispatcher) -> None:
     # Регистрация обработчиков команд
     dp.register_message_handler(cmd_start, commands=["start"], state="*")
     dp.register_message_handler(handle_contact, content_types=["contact"], state="waiting_for_phone")
-    
-    # Регистрация обработчиков кнопок
+    dp.register_message_handler(show_profile, commands=["profile"])
     dp.register_message_handler(show_profile, lambda msg: msg.text == "👤 Профиль")
+    dp.register_message_handler(show_help, commands=["help"])
     dp.register_message_handler(show_help, lambda msg: msg.text == "❓ Помощь") 

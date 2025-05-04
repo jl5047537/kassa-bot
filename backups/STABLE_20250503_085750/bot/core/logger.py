@@ -24,9 +24,6 @@ from .db_logger import setup_db_logging
 # Глобальная переменная для отслеживания инициализации
 _logger_initialized = False
 
-# Создаем глобальный объект логгера
-logger = logging.getLogger('bot')
-
 class JsonFormatter(logging.Formatter):
     """
     Форматтер для логирования в JSON формате.

@@ -5,6 +5,7 @@
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from typing import List, Dict, Optional
+from ..database.sql_models import Admin
 
 def get_main_keyboard(user_id: Optional[str] = None) -> ReplyKeyboardMarkup:
     """
@@ -50,14 +51,68 @@ def get_registration_keyboard() -> ReplyKeyboardMarkup:
 
 def get_admin_keyboard() -> ReplyKeyboardMarkup:
     """
-    Создает клавиатуру для администратора.
+    Создает клавиатуру для администраторов.
     
     Returns:
-        ReplyKeyboardMarkup: Административная клавиатура
+        ReplyKeyboardMarkup: Клавиатура администратора
     """
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("👥 Список Администраторов"))
-    keyboard.add(KeyboardButton("➕ Добавить Админа"))
-    keyboard.add(KeyboardButton("➖ Удалить Админа"))
-    keyboard.add(KeyboardButton("✏️ Редактировать Уровни"))
+    keyboard.add(KeyboardButton("👥 Список Админов"))
+    keyboard.add(KeyboardButton("➕ Добавить Админ"), KeyboardButton("➖ Удалить Админ"))
+    keyboard.add(KeyboardButton("✏️ Уровни"), KeyboardButton("📝 Редактировать Уровни"))
+    keyboard.add(KeyboardButton("🔙 Назад"))
+    return keyboard
+
+def get_levels_keyboard() -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру для редактирования уровней.
+    
+    Returns:
+        InlineKeyboardMarkup: Клавиатура редактирования уровней
+    """
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("1️⃣ Уровень 1", callback_data="edit_level_1"),
+        InlineKeyboardButton("2️⃣ Уровень 2", callback_data="edit_level_2"),
+        InlineKeyboardButton("3️⃣ Уровень 3", callback_data="edit_level_3"),
+        InlineKeyboardButton("4️⃣ Уровень 4", callback_data="edit_level_4"),
+        InlineKeyboardButton("↩️ Назад", callback_data="back_to_admin")
+    )
+    return keyboard
+
+def get_confirm_keyboard() -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру подтверждения.
+    
+    Returns:
+        InlineKeyboardMarkup: Клавиатура подтверждения
+    """
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("✅ Подтвердить", callback_data="confirm_level_change"),
+        InlineKeyboardButton("❌ Отменить", callback_data="cancel_level_change")
+    )
+    return keyboard
+
+def get_admin_remove_keyboard(admins: List[Admin]) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру для удаления администраторов.
+    
+    Args:
+        admins: Список администраторов
+        
+    Returns:
+        InlineKeyboardMarkup: Клавиатура удаления администраторов
+    """
+    keyboard = InlineKeyboardMarkup()
+    for admin in admins:
+        if not admin.is_main:  # Не показываем главного админа
+            keyboard.add(InlineKeyboardButton(
+                text=f"❌ {admin.first_name} {admin.last_name} (@{admin.username or 'нет'})",
+                callback_data=f"remove_admin_{admin.telegram_id}"
+            ))
+    keyboard.add(InlineKeyboardButton(
+        text="🔙 Назад",
+        callback_data="back_to_admin"
+    ))
     return keyboard 

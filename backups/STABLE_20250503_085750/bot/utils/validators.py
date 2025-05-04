@@ -4,12 +4,8 @@
 
 import re
 from typing import Optional, Tuple
-from ..core.database import db
-import logging
 
-logger = logging.getLogger(__name__)
-
-def validate_phone(phone: str) -> Tuple[bool, str, Optional[dict]]:
+def validate_phone(phone: str) -> Tuple[bool, str]:
     """
     Валидация номера телефона.
     
@@ -17,31 +13,20 @@ def validate_phone(phone: str) -> Tuple[bool, str, Optional[dict]]:
         phone: Номер телефона для проверки
         
     Returns:
-        Tuple[bool, str, Optional[dict]]: (Результат валидации, Сообщение об ошибке, Данные предустановленного пользователя)
+        Tuple[bool, str]: (Результат валидации, Сообщение об ошибке)
     """
     # Удаляем все нецифровые символы
     cleaned_phone = re.sub(r'\D', '', phone)
     
     # Проверяем длину номера
     if len(cleaned_phone) != 11:
-        return False, "Номер телефона должен содержать 11 цифр", None
+        return False, "Номер телефона должен содержать 11 цифр"
     
     # Проверяем, что номер начинается с 7 или 8
     if not cleaned_phone.startswith(('7', '8')):
-        return False, "Номер телефона должен начинаться с 7 или 8", None
+        return False, "Номер телефона должен начинаться с 7 или 8"
     
-    # Проверяем, является ли номер предустановленным
-    preset_user = db.get_preset_user_by_phone(cleaned_phone)
-    if preset_user:
-        logger.info(f"Найден предустановленный пользователь уровня {preset_user.level} с номером {cleaned_phone}")
-        return True, "", {
-            "level": preset_user.level,
-            "mentor_id": preset_user.mentor_id,
-            "is_active": preset_user.is_active
-        }
-    
-    logger.info(f"Номер {cleaned_phone} не найден среди предустановленных")
-    return True, "", None
+    return True, ""
 
 def validate_name(name: str) -> Tuple[bool, str]:
     """

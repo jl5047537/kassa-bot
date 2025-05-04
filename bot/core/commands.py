@@ -3,7 +3,7 @@
 """
 
 from typing import List
-from aiogram import Bot, types
+from aiogram import Dispatcher, types
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,23 +13,15 @@ BOT_COMMANDS = [
     {
         "command": "start",
         "description": "Запустить бота"
-    },
-    {
-        "command": "profile",
-        "description": "Показать профиль"
-    },
-    {
-        "command": "help",
-        "description": "Показать справку"
     }
 ]
 
-async def set_bot_commands(bot: Bot) -> None:
+async def set_bot_commands(dp: Dispatcher) -> None:
     """
     Установка команд бота.
     
     Args:
-        bot: Объект бота
+        dp: Диспетчер бота
     """
     try:
         commands = [
@@ -39,8 +31,8 @@ async def set_bot_commands(bot: Bot) -> None:
             )
             for cmd in BOT_COMMANDS
         ]
-        await bot.set_my_commands(commands)
-        logger.info("Команды бота успешно установлены")
+        await dp.bot.set_my_commands(commands)
+        logger.info(f"Команды бота установлены: {commands}")
     except Exception as e:
         logger.error(f"Ошибка при установке команд бота: {str(e)}")
         raise 

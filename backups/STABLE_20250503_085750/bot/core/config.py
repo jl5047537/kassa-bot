@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     LEVEL_1_REQUIREMENT: int = 100
     LEVEL_2_REQUIREMENT: int = 500
     LEVEL_3_REQUIREMENT: int = 1000
-    LEVEL_4_REQUIREMENT: int = 2000
     
     class Config:
         env_file = "config.env"
