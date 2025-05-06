@@ -28,7 +28,7 @@ def get_last_read_time():
     Получает время последнего чтения правил.
     """
     try:
-        with open('.last_rules_read', 'r') as f:
+        with open('.last_read', 'r') as f:
             return datetime.fromisoformat(f.read())
     except:
         return None
@@ -37,7 +37,7 @@ def update_last_read():
     """
     Обновляет время последнего чтения правил.
     """
-    with open('.last_rules_read', 'w') as f:
+    with open('.last_read', 'w') as f:
         f.write(datetime.now().isoformat())
 
 if __name__ == '__main__':

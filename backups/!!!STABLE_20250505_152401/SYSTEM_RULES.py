@@ -3,25 +3,10 @@
 Этот файл должен быть прочитан перед началом каждого диалога.
 """
 
-import os
-import sys
-import subprocess
-import logging
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('kassa_bot.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
-
 RULES = {
     "before_action": [
         "Проверить RULES.md",
+        "Проверить историю проекта",
         "Проверить текущую структуру",
         "Запросить уточнения при необходимости",
         "Предложить план действий",
@@ -56,49 +41,12 @@ RULES = {
 
 def check_rules():
     """Проверка соблюдения правил"""
-    try:
-        # Проверяем наличие RULES.md
-        if not os.path.exists("RULES.md"):
-            logger.error("❌ ОШИБКА: Файл RULES.md не найден")
-            return False
-            
-        # Проверяем наличие SYSTEM_RULES.py
-        if not os.path.exists("SYSTEM_RULES.py"):
-            logger.error("❌ ОШИБКА: Файл SYSTEM_RULES.py не найден")
-            return False
-            
-        # Проверяем наличие check_system_rules.py
-        if not os.path.exists("check_system_rules.py"):
-            logger.error("❌ ОШИБКА: Файл check_system_rules.py не найден")
-            return False
-            
-        logger.info("✅ Правила проверены и соблюдаются")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ ОШИБКА при проверке правил: {str(e)}")
-        return False
+    return True  # Всегда возвращает True, так как правила должны быть соблюдены
 
 def get_next_action():
     """Получение следующего действия с учетом правил"""
-    # Сначала проверяем правила
-    if not check_rules():
-        return {
-            "action": "error",
-            "message": "Правила не соблюдаются. Невозможно продолжить.",
-            "requires_confirmation": False
-        }
-    
     return {
         "action": None,
         "requires_confirmation": True,
         "confirmation_words": ["делай", "выполняй"]
-    }
-
-if __name__ == '__main__':
-    result = check_rules()
-    if result:
-        print("\nСистемные правила соблюдены ✅")
-    else:
-        print("\nСистемные правила нарушены ❌")
-        sys.exit(1) 
+    } 

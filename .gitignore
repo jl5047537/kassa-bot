@@ -44,4 +44,7 @@ logs/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Системные файлы
+system_init.py 
